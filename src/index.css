@@ -1,0 +1,230 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+:root {
+  font-family: 'Inter', sans-serif;
+  color: #0f172a;
+  background: linear-gradient(135deg, #f8fafc 0%, #eef4ff 45%, #e0e7ff 100%);
+  --bg-app: linear-gradient(135deg, #f8fafc 0%, #eef4ff 45%, #e0e7ff 100%);
+  --panel: rgba(255, 255, 255, 0.88);
+  --panel-strong: #ffffff;
+  --panel-dark: #0f172a;
+  --panel-dark-2: #1e293b;
+  --border-soft: rgba(148, 163, 184, 0.22);
+  --text-main: #0f172a;
+  --text-soft: #475569;
+  --primary: #4f46e5;
+  --primary-2: #2563eb;
+  --success: #059669;
+  --warning: #d97706;
+  --danger: #e11d48;
+  --info: #0891b2;
+  --shadow-soft: 0 10px 30px rgba(15, 23, 42, 0.08);
+  --shadow-card: 0 14px 34px rgba(79, 70, 229, 0.10);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  min-height: 100vh;
+  font-family: 'Inter', sans-serif;
+  color: var(--text-main);
+  background: var(--bg-app);
+  background-attachment: fixed;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(circle at top left, rgba(99, 102, 241, 0.18), transparent 28%),
+    radial-gradient(circle at bottom right, rgba(14, 165, 233, 0.14), transparent 24%);
+  pointer-events: none;
+  z-index: -1;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  transition: all 0.2s ease;
+}
+
+input,
+select,
+textarea {
+  transition: all 0.2s ease;
+}
+
+.app-bg {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top left, rgba(99, 102, 241, 0.18), transparent 28%),
+    radial-gradient(circle at bottom right, rgba(14, 165, 233, 0.14), transparent 24%),
+    linear-gradient(135deg, #f8fafc 0%, #eef4ff 45%, #e0e7ff 100%);
+}
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.08);
+}
+
+.premium-card {
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  box-shadow: var(--shadow-soft);
+  border-radius: 1.25rem;
+}
+
+.hero-dark {
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 55%, #312e81 100%);
+  color: white;
+}
+
+.sidebar-glow {
+  background:
+    linear-gradient(180deg, rgba(79, 70, 229, 0.20), transparent 30%),
+    linear-gradient(135deg, #020617, #0f172a 45%, #1e1b4b 100%);
+}
+
+.table-wrap {
+  border-radius: 1.1rem;
+  overflow: hidden;
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: var(--shadow-soft);
+}
+
+.kpi-card {
+  border-radius: 1.25rem;
+  padding: 1.1rem;
+  color: white;
+  box-shadow: var(--shadow-card);
+}
+
+.kpi-indigo {
+  background: linear-gradient(135deg, #4f46e5, #312e81);
+}
+
+.kpi-emerald {
+  background: linear-gradient(135deg, #10b981, #047857);
+}
+
+.kpi-amber {
+  background: linear-gradient(135deg, #f59e0b, #b45309);
+}
+
+.kpi-rose {
+  background: linear-gradient(135deg, #f43f5e, #be123c);
+}
+
+.kpi-cyan {
+  background: linear-gradient(135deg, #06b6d4, #0f766e);
+}
+
+.btn-primary {
+  background: linear-gradient(90deg, #4f46e5, #2563eb);
+  color: white;
+  box-shadow: 0 10px 25px rgba(79, 70, 229, 0.22);
+  border: none;
+}
+
+.btn-primary:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.03);
+}
+
+.btn-success {
+  background: linear-gradient(90deg, #10b981, #059669);
+  color: white;
+  border: none;
+}
+
+.btn-warning {
+  background: linear-gradient(90deg, #f59e0b, #d97706);
+  color: white;
+  border: none;
+}
+
+.section-title {
+  font-size: 1.9rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.section-subtitle {
+  color: #64748b;
+  font-size: 0.95rem;
+}
+
+.status-chip {
+  display: inline-block;
+  padding: 0.3rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.status-available {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.status-allocated {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.status-maintenance {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.status-overdue {
+  background: #ffe4e6;
+  color: #be123c;
+}
+
+.status-booked {
+  background: #cffafe;
+  color: #155e75;
+}
+
+.soft-input {
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid rgba(203, 213, 225, 0.95);
+}
+
+.soft-input:focus {
+  outline: none;
+  border-color: #6366f1;
+  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.12);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #94a3b8, #64748b);
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(226, 232, 240, 0.6);
+}

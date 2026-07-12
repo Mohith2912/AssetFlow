@@ -377,10 +377,22 @@ export const MockDataProvider = ({ children }) => {
   };
 
   const allocateAsset = (assetId, employeeName, expectedReturnDate = '') => {
+    if (typeof assetId === 'object' && assetId !== null) {
+      const payload = assetId;
+      assetId = payload.assetId;
+      employeeName = payload.employeeName || payload.employeeId || payload.assignedTo;
+      expectedReturnDate = payload.expectedReturnDate || '';
+    }
+
     const validation = validateAllocation(assetId);
     if (!validation.allowed) return validation;
 
     const assetItem = assets.find((a) => a.id === assetId);
+    const employee =
+      employees.find((emp) => emp.id === Number(employeeName)) ||
+      employees.find((emp) => emp.name === employeeName);
+
+    const finalEmployeeName = employee?.name || employeeName;
 
     setAssets((prev) =>
       prev.map((asset) =>
@@ -388,7 +400,7 @@ export const MockDataProvider = ({ children }) => {
           ? {
               ...asset,
               status: 'Allocated',
-              currentHolder: employeeName,
+              currentHolder: finalEmployeeName,
               expectedReturnDate: expectedReturnDate || '',
             }
           : asset
@@ -400,7 +412,7 @@ export const MockDataProvider = ({ children }) => {
         id: `ALC-${Date.now()}`,
         assetId,
         assetName: assetItem?.name || assetId,
-        assignedTo: employeeName,
+        assignedTo: finalEmployeeName,
         assignedBy: currentUser?.name || 'Manager',
         date: todayString(),
         expectedReturnDate: expectedReturnDate || '',
@@ -413,15 +425,15 @@ export const MockDataProvider = ({ children }) => {
       {
         id: `NTF-${Date.now()}`,
         type: 'Asset Assigned',
-        message: `Asset ${assetId} allocated to ${employeeName}.`,
-        audience: employeeName,
+        message: `Asset ${assetId} allocated to ${finalEmployeeName}.`,
+        audience: finalEmployeeName,
         timestamp: createTimestamp(),
         read: false,
       },
       ...prev,
     ]);
 
-    addActivityLog(`Allocated asset [${assetId}] to ${employeeName}`);
+    addActivityLog(`Allocated asset [${assetId}] to ${finalEmployeeName}`);
     return { ok: true, allowed: true };
   };
 
@@ -436,7 +448,13 @@ export const MockDataProvider = ({ children }) => {
       return { ok: false, message: 'Only allocated assets can be transferred.' };
     }
 
-    if (asset.currentHolder === toEmployee) {
+    const employee =
+      employees.find((emp) => emp.id === Number(toEmployee)) ||
+      employees.find((emp) => emp.name === toEmployee);
+
+    const finalToEmployee = employee?.name || toEmployee;
+
+    if (asset.currentHolder === finalToEmployee) {
       return {
         ok: false,
         message: 'Selected employee already holds this asset.',
@@ -459,7 +477,7 @@ export const MockDataProvider = ({ children }) => {
       assetId,
       assetName: asset.name,
       fromEmployee: asset.currentHolder,
-      toEmployee,
+      toEmployee: finalToEmployee,
       requestedBy: currentUser?.name || 'Employee',
       status: 'Requested',
       requestedDate: todayString(),
@@ -471,7 +489,7 @@ export const MockDataProvider = ({ children }) => {
       {
         id: `NTF-${Date.now() + 1}`,
         type: 'Transfer Request',
-        message: `Transfer requested for ${assetId} from ${asset.currentHolder} to ${toEmployee}.`,
+        message: `Transfer requested for ${assetId} from ${asset.currentHolder} to ${finalToEmployee}.`,
         audience: 'Asset Manager',
         timestamp: createTimestamp(),
         read: false,
@@ -479,7 +497,7 @@ export const MockDataProvider = ({ children }) => {
       ...prev,
     ]);
 
-    addActivityLog(`Transfer requested for ${assetId} to ${toEmployee}`);
+    addActivityLog(`Transfer requested for ${assetId} to ${finalToEmployee}`);
     return { ok: true, transfer: newTransfer };
   };
 
@@ -607,7 +625,29 @@ export const MockDataProvider = ({ children }) => {
     return { allowed: true };
   };
 
-  const addBooking = (resourceId, user, date, startTime, endTime) => {
+  const addBooking = (...args) => {
+    let resourceId, user, date, startTime, endTime;
+
+    if (typeof args[0] === 'object' && args[0] !== null) {
+      const payload = args[0];
+      resourceId = payload.resourceId || payload.assetId;
+      user = payload.user || currentUser?.name || 'User';
+
+      if (payload.date && payload.startTime && payload.endTime) {
+        date = payload.date;
+        startTime = payload.startTime;
+        endTime = payload.endTime;
+      } else if (payload.startTime && payload.endTime) {
+        const [startDatePart, startTimePart] = payload.startTime.split('T');
+        const [, endTimePart] = payload.endTime.split('T');
+        date = startDatePart;
+        startTime = startTimePart?.slice(0, 5);
+        endTime = endTimePart?.slice(0, 5);
+      }
+    } else {
+      [resourceId, user, date, startTime, endTime] = args;
+    }
+
     const resource = assets.find((a) => a.id === resourceId);
 
     if (!resource) {
@@ -619,6 +659,14 @@ export const MockDataProvider = ({ children }) => {
         ok: false,
         allowed: false,
         message: 'Selected asset is not marked as bookable.',
+      };
+    }
+
+    if (!date || !startTime || !endTime) {
+      return {
+        ok: false,
+        allowed: false,
+        message: 'Date, start time, and end time are required.',
       };
     }
 
@@ -683,7 +731,18 @@ export const MockDataProvider = ({ children }) => {
     return { ok: true };
   };
 
-  const raiseMaintenance = (assetId, description, priority = 'Medium') => {
+  const raiseMaintenance = (...args) => {
+    let assetId, description, priority;
+
+    if (typeof args[0] === 'object' && args[0] !== null) {
+      const payload = args[0];
+      assetId = payload.assetId;
+      description = payload.description || payload.issueDescription;
+      priority = payload.priority || 'Medium';
+    } else {
+      [assetId, description, priority = 'Medium'] = args;
+    }
+
     const asset = assets.find((a) => a.id === assetId);
 
     if (!asset) {
@@ -720,6 +779,8 @@ export const MockDataProvider = ({ children }) => {
     addActivityLog(`Raised maintenance request for ${assetId}`);
     return { ok: true, request: newRequest };
   };
+
+  const addMaintenanceRequest = (payload) => raiseMaintenance(payload);
 
   const updateMaintenanceStatus = (requestId, nextStatus) => {
     const request = maintenanceRequests.find((m) => m.id === requestId);
@@ -990,6 +1051,7 @@ export const MockDataProvider = ({ children }) => {
         addBooking,
         cancelBooking,
         raiseMaintenance,
+        addMaintenanceRequest,
         updateMaintenanceStatus,
         createAuditCycle,
         markAuditItem,

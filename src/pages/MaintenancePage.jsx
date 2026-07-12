@@ -15,91 +15,57 @@ export default function MaintenancePage() {
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState('Medium');
   const [technicianSelections, setTechnicianSelections] = useState({});
-  const [successMessage, setSuccessMessage] = useState('');
-  const [errorMessage, setErrorMessage] = useState('');
+  const [feedback, setFeedback] = useState({ type: '', message: '' });
 
   const canApproveMaintenance =
     currentUser?.role === 'Admin' || currentUser?.role === 'Asset Manager';
 
-  const maintenanceEligibleAssets = useMemo(
-    () =>
-      assets.filter(
-        (asset) =>
-          asset.status !== 'Retired' &&
-          asset.status !== 'Disposed' &&
-          asset.status !== 'Lost'
-      ),
-    [assets]
-  );
+  const maintenanceEligibleAssets = useMemo(() => {
+    return assets.filter(
+      (asset) =>
+        asset.status !== 'Retired' &&
+        asset.status !== 'Disposed' &&
+        asset.status !== 'Lost'
+    );
+  }, [assets]);
 
   const technicians = useMemo(() => {
-    return (
-      employees.filter(
-        (emp) =>
+    return employees.filter(
+      (emp) =>
+        emp.status === 'Active' &&
+        (
           emp.role === 'Asset Manager' ||
           emp.role === 'Technician' ||
           emp.department === 'IT' ||
           emp.department === 'Facilities'
-      ) || []
+        )
     );
   }, [employees]);
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    setSuccessMessage('');
-    setErrorMessage('');
+  const assetLookup = useMemo(() => {
+    return assets.reduce((acc, asset) => {
+      acc[asset.id] = asset;
+      return acc;
+    }, {});
+  }, [assets]);
 
-    if (!selectedAssetId || !description.trim()) {
-      setErrorMessage('Please select an asset and enter the issue description.');
-      return;
-    }
+  const sortedRequests = useMemo(() => {
+    return [...maintenanceRequests].sort((a, b) => b.id.localeCompare(a.id));
+  }, [maintenanceRequests]);
 
-    if (description.trim().length < 8) {
-      setErrorMessage('Issue description should be at least 8 characters long.');
-      return;
-    }
+  const summary = useMemo(() => {
+    return {
+      pending: maintenanceRequests.filter((m) => m.status === 'Pending').length,
+      approved: maintenanceRequests.filter((m) => m.status === 'Approved').length,
+      activeWork: maintenanceRequests.filter(
+        (m) => m.status === 'Technician Assigned' || m.status === 'In Progress'
+      ).length,
+      resolved: maintenanceRequests.filter((m) => m.status === 'Resolved').length,
+    };
+  }, [maintenanceRequests]);
 
-    const result = raiseMaintenance(selectedAssetId, description.trim(), priority);
-
-    if (!result?.ok) {
-      setErrorMessage(result?.message || 'Unable to raise maintenance request.');
-      return;
-    }
-
-    setSuccessMessage(`Maintenance request created successfully for ${selectedAssetId}.`);
-    setDescription('');
-    setSelectedAssetId('');
-    setPriority('Medium');
-  };
-
-  const handleStatusChange = (requestId, nextStatus, assignedTechnician = '') => {
-    setSuccessMessage('');
-    setErrorMessage('');
-
-    if (nextStatus === 'Technician Assigned' && !assignedTechnician) {
-      setErrorMessage('Please select a technician before assignment.');
-      return;
-    }
-
-    const result = updateMaintenanceStatus(requestId, nextStatus, assignedTechnician);
-
-    if (!result?.ok) {
-      setErrorMessage(result?.message || 'Unable to update maintenance status.');
-      return;
-    }
-
-    setSuccessMessage(`Maintenance request updated to ${nextStatus}.`);
-
-    if (nextStatus === 'Technician Assigned') {
-      setTechnicianSelections((prev) => ({
-        ...prev,
-        [requestId]: '',
-      }));
-    }
-  };
-
-  const getPriorityBadge = (priority) => {
-    switch (priority) {
+  const getPriorityBadge = (value) => {
+    switch (value) {
       case 'Critical':
         return 'bg-rose-100 text-rose-700';
       case 'High':
@@ -111,8 +77,8 @@ export default function MaintenancePage() {
     }
   };
 
-  const getStatusBadge = (status) => {
-    switch (status) {
+  const getStatusBadge = (value) => {
+    switch (value) {
       case 'Resolved':
         return 'bg-emerald-100 text-emerald-700';
       case 'Rejected':
@@ -128,6 +94,84 @@ export default function MaintenancePage() {
     }
   };
 
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    setFeedback({ type: '', message: '' });
+
+    if (!selectedAssetId || !description.trim()) {
+      setFeedback({
+        type: 'error',
+        message: 'Please select an asset and enter the issue description.',
+      });
+      return;
+    }
+
+    if (description.trim().length < 8) {
+      setFeedback({
+        type: 'error',
+        message: 'Issue description should be at least 8 characters long.',
+      });
+      return;
+    }
+
+    const result = raiseMaintenance(selectedAssetId, description.trim(), priority);
+
+    if (!result?.ok) {
+      setFeedback({
+        type: 'error',
+        message: result?.message || 'Unable to raise maintenance request.',
+      });
+      return;
+    }
+
+    setFeedback({
+      type: 'success',
+      message: `Maintenance request created successfully for ${selectedAssetId}.`,
+    });
+
+    setSelectedAssetId('');
+    setDescription('');
+    setPriority('Medium');
+  };
+
+  const handleStatusChange = (requestId, nextStatus, assignedTechnician = '') => {
+    setFeedback({ type: '', message: '' });
+
+    if (nextStatus === 'Technician Assigned' && !assignedTechnician) {
+      setFeedback({
+        type: 'error',
+        message: 'Please select a technician before assignment.',
+      });
+      return;
+    }
+
+    const result = updateMaintenanceStatus(
+      requestId,
+      nextStatus,
+      assignedTechnician
+    );
+
+    if (!result?.ok) {
+      setFeedback({
+        type: 'error',
+        message: result?.message || 'Unable to update maintenance status.',
+      });
+      return;
+    }
+
+    setFeedback({
+      type: 'success',
+      message: `Maintenance request updated to ${nextStatus}.`,
+    });
+
+    if (nextStatus === 'Technician Assigned') {
+      setTechnicianSelections((prev) => ({
+        ...prev,
+        [requestId]: '',
+      }));
+    }
+  };
+
   return (
     <div className="space-y-8">
       <div>
@@ -139,17 +183,17 @@ export default function MaintenancePage() {
         </p>
       </div>
 
-      {errorMessage && (
-        <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700">
-          {errorMessage}
+      {feedback.message ? (
+        <div
+          className={`rounded-xl border px-4 py-3 text-sm font-medium ${
+            feedback.type === 'success'
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+              : 'border-rose-200 bg-rose-50 text-rose-700'
+          }`}
+        >
+          {feedback.message}
         </div>
-      )}
-
-      {successMessage && (
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
-          {successMessage}
-        </div>
-      )}
+      ) : null}
 
       <div className="grid grid-cols-1 items-start gap-8 xl:grid-cols-3">
         <div className="premium-card space-y-5 p-6">
@@ -257,128 +301,149 @@ export default function MaintenancePage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
-                  {maintenanceRequests.length > 0 ? (
-                    maintenanceRequests.map((request) => (
-                      <tr key={request.id} className="align-top hover:bg-slate-50/40">
-                        <td className="py-4 pr-4">
-                          <p className="font-bold text-slate-800">{request.assetId}</p>
-                          <p className="text-xs text-slate-400">{request.id}</p>
-                        </td>
+                  {sortedRequests.length > 0 ? (
+                    sortedRequests.map((request) => {
+                      const asset = assetLookup[request.assetId];
 
-                        <td className="py-4 pr-4 text-sm text-slate-700">
-                          {request.description}
-                        </td>
+                      return (
+                        <tr key={request.id} className="align-top hover:bg-slate-50/40">
+                          <td className="py-4 pr-4">
+                            <p className="font-bold text-slate-800">
+                              {request.assetId}
+                            </p>
+                            <p className="text-xs text-slate-500">
+                              {asset?.name || 'Unknown asset'}
+                            </p>
+                            <p className="text-xs text-slate-400">{request.id}</p>
+                          </td>
 
-                        <td className="py-4 pr-4">
-                          <span
-                            className={`rounded px-2.5 py-1 text-[10px] font-bold uppercase ${getPriorityBadge(
-                              request.priority
-                            )}`}
-                          >
-                            {request.priority}
-                          </span>
-                        </td>
+                          <td className="py-4 pr-4 text-sm text-slate-700">
+                            {request.description}
+                            <p className="mt-1 text-xs text-slate-400">
+                              Raised by {request.requestedBy || 'User'}
+                            </p>
+                          </td>
 
-                        <td className="py-4 pr-4">
-                          <span
-                            className={`rounded px-2.5 py-1 text-[10px] font-bold uppercase ${getStatusBadge(
-                              request.status
-                            )}`}
-                          >
-                            {request.status}
-                          </span>
-                        </td>
+                          <td className="py-4 pr-4">
+                            <span
+                              className={`rounded px-2.5 py-1 text-[10px] font-bold uppercase ${getPriorityBadge(
+                                request.priority
+                              )}`}
+                            >
+                              {request.priority}
+                            </span>
+                          </td>
 
-                        <td className="py-4 pr-4 text-sm text-slate-600">
-                          {request.technician || 'Not assigned'}
-                        </td>
+                          <td className="py-4 pr-4">
+                            <span
+                              className={`rounded px-2.5 py-1 text-[10px] font-bold uppercase ${getStatusBadge(
+                                request.status
+                              )}`}
+                            >
+                              {request.status}
+                            </span>
+                          </td>
 
-                        <td className="py-4 text-right">
-                          {canApproveMaintenance ? (
-                            <div className="flex flex-wrap justify-end gap-2">
-                              {request.status === 'Pending' && (
-                                <>
-                                  <button
-                                    onClick={() => handleStatusChange(request.id, 'Approved')}
-                                    className="rounded bg-emerald-50 px-3 py-1 text-[11px] font-bold text-emerald-700 hover:bg-emerald-100"
-                                  >
-                                    Approve
-                                  </button>
-                                  <button
-                                    onClick={() => handleStatusChange(request.id, 'Rejected')}
-                                    className="rounded bg-rose-50 px-3 py-1 text-[11px] font-bold text-rose-700 hover:bg-rose-100"
-                                  >
-                                    Reject
-                                  </button>
-                                </>
-                              )}
+                          <td className="py-4 pr-4 text-sm text-slate-600">
+                            {request.technician || 'Not assigned'}
+                          </td>
 
-                              {request.status === 'Approved' && (
-                                <div className="flex flex-wrap justify-end gap-2">
-                                  <select
-                                    value={technicianSelections[request.id] || ''}
-                                    onChange={(e) =>
-                                      setTechnicianSelections((prev) => ({
-                                        ...prev,
-                                        [request.id]: e.target.value,
-                                      }))
-                                    }
-                                    className="rounded border border-slate-200 bg-white px-2 py-1 text-[11px]"
-                                  >
-                                    <option value="">Assign technician</option>
-                                    {technicians.map((emp) => (
-                                      <option key={emp.id} value={emp.name}>
-                                        {emp.name}
-                                      </option>
-                                    ))}
-                                  </select>
+                          <td className="py-4 text-right">
+                            {canApproveMaintenance ? (
+                              <div className="flex flex-wrap justify-end gap-2">
+                                {request.status === 'Pending' && (
+                                  <>
+                                    <button
+                                      onClick={() =>
+                                        handleStatusChange(request.id, 'Approved')
+                                      }
+                                      className="rounded bg-emerald-50 px-3 py-1 text-[11px] font-bold text-emerald-700 hover:bg-emerald-100"
+                                    >
+                                      Approve
+                                    </button>
+                                    <button
+                                      onClick={() =>
+                                        handleStatusChange(request.id, 'Rejected')
+                                      }
+                                      className="rounded bg-rose-50 px-3 py-1 text-[11px] font-bold text-rose-700 hover:bg-rose-100"
+                                    >
+                                      Reject
+                                    </button>
+                                  </>
+                                )}
+
+                                {request.status === 'Approved' && (
+                                  <>
+                                    <select
+                                      value={technicianSelections[request.id] || ''}
+                                      onChange={(e) =>
+                                        setTechnicianSelections((prev) => ({
+                                          ...prev,
+                                          [request.id]: e.target.value,
+                                        }))
+                                      }
+                                      className="rounded border border-slate-200 bg-white px-2 py-1 text-[11px]"
+                                    >
+                                      <option value="">Assign technician</option>
+                                      {technicians.map((emp) => (
+                                        <option key={emp.id} value={emp.name}>
+                                          {emp.name}
+                                        </option>
+                                      ))}
+                                    </select>
+
+                                    <button
+                                      onClick={() =>
+                                        handleStatusChange(
+                                          request.id,
+                                          'Technician Assigned',
+                                          technicianSelections[request.id] || ''
+                                        )
+                                      }
+                                      className="rounded bg-violet-50 px-3 py-1 text-[11px] font-bold text-violet-700 hover:bg-violet-100"
+                                    >
+                                      Assign
+                                    </button>
+                                  </>
+                                )}
+
+                                {request.status === 'Technician Assigned' && (
                                   <button
                                     onClick={() =>
-                                      handleStatusChange(
-                                        request.id,
-                                        'Technician Assigned',
-                                        technicianSelections[request.id] || ''
-                                      )
+                                      handleStatusChange(request.id, 'In Progress')
                                     }
-                                    className="rounded bg-violet-50 px-3 py-1 text-[11px] font-bold text-violet-700 hover:bg-violet-100"
+                                    className="rounded bg-blue-50 px-3 py-1 text-[11px] font-bold text-blue-700 hover:bg-blue-100"
                                   >
-                                    Assign
+                                    Start Work
                                   </button>
-                                </div>
-                              )}
+                                )}
 
-                              {request.status === 'Technician Assigned' && (
-                                <button
-                                  onClick={() => handleStatusChange(request.id, 'In Progress')}
-                                  className="rounded bg-blue-50 px-3 py-1 text-[11px] font-bold text-blue-700 hover:bg-blue-100"
-                                >
-                                  Start Work
-                                </button>
-                              )}
+                                {request.status === 'In Progress' && (
+                                  <button
+                                    onClick={() =>
+                                      handleStatusChange(request.id, 'Resolved')
+                                    }
+                                    className="rounded bg-emerald-50 px-3 py-1 text-[11px] font-bold text-emerald-700 hover:bg-emerald-100"
+                                  >
+                                    Resolve
+                                  </button>
+                                )}
 
-                              {request.status === 'In Progress' && (
-                                <button
-                                  onClick={() => handleStatusChange(request.id, 'Resolved')}
-                                  className="rounded bg-emerald-50 px-3 py-1 text-[11px] font-bold text-emerald-700 hover:bg-emerald-100"
-                                >
-                                  Resolve
-                                </button>
-                              )}
-
-                              {['Resolved', 'Rejected'].includes(request.status) && (
-                                <span className="text-[11px] italic text-slate-400">
-                                  Closed
-                                </span>
-                              )}
-                            </div>
-                          ) : (
-                            <span className="text-[11px] italic text-slate-400">
-                              View only
-                            </span>
-                          )}
-                        </td>
-                      </tr>
-                    ))
+                                {['Resolved', 'Rejected'].includes(request.status) && (
+                                  <span className="text-[11px] italic text-slate-400">
+                                    Closed
+                                  </span>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-[11px] italic text-slate-400">
+                                View only
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })
                   ) : (
                     <tr>
                       <td colSpan="6" className="py-8 text-center text-sm italic text-slate-400">
@@ -399,7 +464,7 @@ export default function MaintenancePage() {
                   Pending
                 </p>
                 <p className="mt-2 text-2xl font-bold text-amber-900">
-                  {maintenanceRequests.filter((m) => m.status === 'Pending').length}
+                  {summary.pending}
                 </p>
               </div>
 
@@ -408,7 +473,7 @@ export default function MaintenancePage() {
                   Approved
                 </p>
                 <p className="mt-2 text-2xl font-bold text-cyan-900">
-                  {maintenanceRequests.filter((m) => m.status === 'Approved').length}
+                  {summary.approved}
                 </p>
               </div>
 
@@ -417,12 +482,7 @@ export default function MaintenancePage() {
                   Active Work
                 </p>
                 <p className="mt-2 text-2xl font-bold text-blue-900">
-                  {
-                    maintenanceRequests.filter(
-                      (m) =>
-                        m.status === 'Technician Assigned' || m.status === 'In Progress'
-                    ).length
-                  }
+                  {summary.activeWork}
                 </p>
               </div>
 
@@ -431,7 +491,7 @@ export default function MaintenancePage() {
                   Resolved
                 </p>
                 <p className="mt-2 text-2xl font-bold text-emerald-900">
-                  {maintenanceRequests.filter((m) => m.status === 'Resolved').length}
+                  {summary.resolved}
                 </p>
               </div>
             </div>

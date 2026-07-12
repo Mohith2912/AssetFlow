@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import { useMockData } from '../context/MockDataContext';
 import AssetDirectory from './AssetDirectory';
 import AllocationsPage from './AllocationsPage';
@@ -8,6 +8,9 @@ import AuditPage from './AuditPage';
 import ReportsPage from './ReportsPage';
 import NotificationsPage from './NotificationsPage';
 import OrgSetup from './OrgSetup';
+import AllocationModal from '../components/modals/AllocationModal';
+import BookingModal from '../components/modals/BookingModal';
+import MaintenanceModal from '../components/modals/MaintenanceModal';
 
 function StatCard({ title, value, subtitle, tone = 'indigo' }) {
   const toneStyles = {
@@ -30,7 +33,7 @@ function StatCard({ title, value, subtitle, tone = 'indigo' }) {
   );
 }
 
-function DashboardOverview() {
+function DashboardOverview({ onOpenAllocation, onOpenBooking, onOpenMaintenance }) {
   const {
     dashboardStats = {},
     transferRequests = [],
@@ -43,16 +46,33 @@ function DashboardOverview() {
     setActiveTab,
   } = useMockData();
 
-  const overdueAssets = assets.filter(
-    (a) => a.isOverdue && a.status === 'Allocated'
+  const overdueAssets = useMemo(
+    () => assets.filter((a) => a.isOverdue && a.status === 'Allocated'),
+    [assets]
   );
-  const pendingTransfersList = transferRequests.filter(
-    (t) => t.status === 'Requested'
+
+  const pendingTransfersList = useMemo(
+    () => transferRequests.filter((t) => t.status === 'Requested'),
+    [transferRequests]
   );
-  const pendingMaintenance = maintenanceRequests.filter((m) =>
-    ['Pending', 'Approved', 'Technician Assigned', 'In Progress'].includes(m.status)
+
+  const pendingMaintenance = useMemo(
+    () =>
+      maintenanceRequests.filter((m) =>
+        ['Pending', 'Approved', 'Technician Assigned', 'In Progress'].includes(m.status)
+      ),
+    [maintenanceRequests]
   );
-  const unreadNotifications = notifications.filter((n) => !n.read).slice(0, 5);
+
+  const unreadNotifications = useMemo(
+    () => notifications.filter((n) => !n.read).slice(0, 5),
+    [notifications]
+  );
+
+  const canAllocate =
+    currentUser?.role === 'Admin' ||
+    currentUser?.role === 'Asset Manager' ||
+    currentUser?.role === 'Department Head';
 
   return (
     <div className="space-y-8">
@@ -81,9 +101,7 @@ function DashboardOverview() {
             <p className="mt-1 text-sm font-semibold text-slate-900">
               {currentUser?.name || 'User'}
             </p>
-            <p className="text-xs text-slate-500">
-              {currentUser?.role || 'Employee'}
-            </p>
+            <p className="text-xs text-slate-500">{currentUser?.role || 'Employee'}</p>
           </div>
         </div>
 
@@ -94,14 +112,25 @@ function DashboardOverview() {
           >
             Register Asset
           </button>
+
+          {canAllocate ? (
+            <button
+              onClick={onOpenAllocation}
+              className="rounded-2xl bg-white/10 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/20"
+            >
+              Allocate Asset
+            </button>
+          ) : null}
+
           <button
-            onClick={() => setActiveTab('bookings')}
+            onClick={onOpenBooking}
             className="rounded-2xl bg-white/10 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/20"
           >
             Book Resource
           </button>
+
           <button
-            onClick={() => setActiveTab('maintenance')}
+            onClick={onOpenMaintenance}
             className="rounded-2xl bg-white/10 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/20"
           >
             Raise Maintenance Request
@@ -178,8 +207,7 @@ function DashboardOverview() {
                   <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                     <div>
                       <p className="font-semibold text-rose-900">
-                        {asset.name}{' '}
-                        <span className="text-rose-700">({asset.id})</span>
+                        {asset.name} <span className="text-rose-700">({asset.id})</span>
                       </p>
                       <p className="mt-1 text-sm text-rose-700">
                         Current holder: {asset.currentHolder || 'Unassigned'}
@@ -252,9 +280,7 @@ function DashboardOverview() {
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <p className="font-semibold text-amber-900">
-                        {request.assetId}
-                      </p>
+                      <p className="font-semibold text-amber-900">{request.assetId}</p>
                       <p className="mt-1 text-sm text-amber-800">
                         {request.description}
                       </p>
@@ -276,9 +302,7 @@ function DashboardOverview() {
         <div className="premium-card p-6">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-lg font-bold text-slate-900">
-                Unread notifications
-              </h2>
+              <h2 className="text-lg font-bold text-slate-900">Unread notifications</h2>
               <p className="mt-1 text-sm text-slate-500">
                 Alerts for returns, bookings, transfers, maintenance, and audits.
               </p>
@@ -402,12 +426,22 @@ export default function Dashboard() {
     activeTab,
     setActiveTab,
     logoutUser,
+    assets = [],
+    employees = [],
+    allocateAsset,
+    addBooking,
+    addMaintenanceRequest,
   } = useMockData();
+
+  const [openAllocation, setOpenAllocation] = useState(false);
+  const [openBooking, setOpenBooking] = useState(false);
+  const [openMaintenance, setOpenMaintenance] = useState(false);
 
   const isAdmin = currentUser?.role === 'Admin';
   const isManager =
     currentUser?.role === 'Asset Manager' ||
     currentUser?.role === 'Department Head';
+
   const canAccessOrgSetup = isAdmin;
 
   const navItems = [
@@ -456,14 +490,20 @@ export default function Dashboard() {
         return <ActivityLogsPage />;
       case 'dashboard':
       default:
-        return <DashboardOverview />;
+        return (
+          <DashboardOverview
+            onOpenAllocation={() => setOpenAllocation(true)}
+            onOpenBooking={() => setOpenBooking(true)}
+            onOpenMaintenance={() => setOpenMaintenance(true)}
+          />
+        );
     }
   };
 
   return (
     <div className="min-h-screen">
       <div className="flex min-h-screen flex-col lg:flex-row">
-        <aside className="sidebar-glow w-full border-b border-white/10 text-white lg:min-h-screen lg:w-72 lg:border-b-0 lg:border-r lg:relative">
+        <aside className="sidebar-glow w-full border-b border-white/10 text-white lg:relative lg:min-h-screen lg:w-72 lg:border-b-0 lg:border-r">
           <div className="border-b border-white/10 px-6 py-6">
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-white/55">
               Enterprise ERP
@@ -520,6 +560,30 @@ export default function Dashboard() {
           <div className="mx-auto max-w-7xl">{renderActivePage()}</div>
         </main>
       </div>
+
+      <AllocationModal
+        isOpen={openAllocation}
+        onClose={() => setOpenAllocation(false)}
+        assets={assets}
+        employees={employees}
+        onSubmit={(data) =>
+          allocateAsset?.(data.assetId, data.employeeId || data.employeeName, data.expectedReturnDate)
+        }
+      />
+
+      <BookingModal
+        isOpen={openBooking}
+        onClose={() => setOpenBooking(false)}
+        assets={assets}
+        onSubmit={(data) => addBooking?.(data)}
+      />
+
+      <MaintenanceModal
+        isOpen={openMaintenance}
+        onClose={() => setOpenMaintenance(false)}
+        assets={assets}
+        onSubmit={(data) => addMaintenanceRequest?.(data)}
+      />
     </div>
   );
 }

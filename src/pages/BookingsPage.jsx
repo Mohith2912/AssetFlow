@@ -2,7 +2,13 @@ import React, { useMemo, useState } from 'react';
 import { useMockData } from '../context/MockDataContext';
 
 export default function BookingsPage() {
-  const { bookings = [], assets = [], currentUser, addBooking, cancelBooking } = useMockData();
+  const {
+    bookings = [],
+    assets = [],
+    currentUser,
+    addBooking,
+    cancelBooking,
+  } = useMockData();
 
   const today = new Date().toISOString().split('T')[0];
 
@@ -12,106 +18,26 @@ export default function BookingsPage() {
   const [endTime, setEndTime] = useState('');
   const [filterResource, setFilterResource] = useState('All');
   const [filterStatus, setFilterStatus] = useState('All');
-  const [errorMessage, setErrorMessage] = useState('');
-  const [successMessage, setSuccessMessage] = useState('');
+  const [feedback, setFeedback] = useState({ type: '', message: '' });
 
-  const bookableResources = useMemo(
-    () =>
-      assets.filter(
-        (asset) => asset.isBookable || asset.category === 'Spaces'
-      ),
-    [assets]
-  );
-
-  const filteredBookings = useMemo(() => {
-    return bookings.filter((booking) => {
-      const resourceId = booking.resourceId || booking.assetId;
-      const matchesResource =
-        filterResource === 'All' || resourceId === filterResource;
-      const matchesStatus =
-        filterStatus === 'All' || booking.status === filterStatus;
-
-      return matchesResource && matchesStatus;
-    });
-  }, [bookings, filterResource, filterStatus]);
-
-  const selectedResourceBookings = useMemo(() => {
-    if (!selectedAsset) return [];
-
-    return bookings
-      .filter((booking) => {
-        const resourceId = booking.resourceId || booking.assetId;
-        return resourceId === selectedAsset && booking.status !== 'Cancelled';
-      })
-      .sort((a, b) => {
-        const first = `${a.date} ${a.startTime}`;
-        const second = `${b.date} ${b.startTime}`;
-        return first.localeCompare(second);
-      });
-  }, [bookings, selectedAsset]);
-
-  const handleCreateBooking = (e) => {
-    e.preventDefault();
-    setErrorMessage('');
-    setSuccessMessage('');
-
-    if (!selectedAsset || !bookingDate || !startTime || !endTime) {
-      setErrorMessage('Please fill in all booking fields.');
-      return;
-    }
-
-    if (bookingDate < today) {
-      setErrorMessage('Booking date cannot be in the past.');
-      return;
-    }
-
-    if (startTime >= endTime) {
-      setErrorMessage('End time must be later than the start time.');
-      return;
-    }
-
-    const result = addBooking(
-      selectedAsset,
-      currentUser?.name || 'Employee',
-      bookingDate,
-      startTime,
-      endTime
+  const bookableResources = useMemo(() => {
+    return assets.filter(
+      (asset) => asset.isBookable || asset.category === 'Spaces'
     );
+  }, [assets]);
 
-    if (!result?.ok) {
-      setErrorMessage(
-        result?.message ||
-          'Scheduling conflict: this resource is already booked for the selected slot.'
-      );
-      return;
-    }
+  const getDerivedBookingStatus = (booking) => {
+    if (booking.status === 'Cancelled') return 'Cancelled';
 
-    setSuccessMessage('Booking created successfully.');
-    setSelectedAsset('');
-    setStartTime('');
-    setEndTime('');
-  };
+    const now = new Date();
+    const bookingStart = new Date(`${booking.date}T${booking.startTime}`);
+    const bookingEnd = new Date(`${booking.date}T${booking.endTime}`);
 
-  const handleCancelBooking = (id) => {
-    setErrorMessage('');
-    setSuccessMessage('');
+    if (now < bookingStart) return 'Upcoming';
+    if (now >= bookingStart && now < bookingEnd) return 'Ongoing';
+    if (now >= bookingEnd) return 'Completed';
 
-    const result = cancelBooking(id);
-
-    if (result?.ok) {
-      setSuccessMessage(`Booking ${id} has been cancelled.`);
-    } else {
-      setErrorMessage(result?.message || 'Unable to cancel booking.');
-    }
-  };
-
-  const canCancelBooking = (booking) => {
-    const owner = booking.user || booking.bookedBy;
-    return (
-      owner === currentUser?.name ||
-      currentUser?.role === 'Admin' ||
-      currentUser?.role === 'Department Head'
-    );
+    return booking.status || 'Confirmed';
   };
 
   const getStatusBadge = (status) => {
@@ -131,6 +57,134 @@ export default function BookingsPage() {
     }
   };
 
+  const filteredBookings = useMemo(() => {
+    return bookings
+      .filter((booking) => {
+        const resourceId = booking.resourceId || booking.assetId;
+        const displayStatus = getDerivedBookingStatus(booking);
+
+        const matchesResource =
+          filterResource === 'All' || resourceId === filterResource;
+
+        const matchesStatus =
+          filterStatus === 'All' || displayStatus === filterStatus;
+
+        return matchesResource && matchesStatus;
+      })
+      .sort((a, b) => {
+        const first = `${a.date} ${a.startTime}`;
+        const second = `${b.date} ${b.startTime}`;
+        return first.localeCompare(second);
+      });
+  }, [bookings, filterResource, filterStatus]);
+
+  const selectedResource = useMemo(() => {
+    return bookableResources.find((item) => item.id === selectedAsset) || null;
+  }, [bookableResources, selectedAsset]);
+
+  const selectedResourceBookings = useMemo(() => {
+    if (!selectedAsset) return [];
+
+    return bookings
+      .filter((booking) => {
+        const resourceId = booking.resourceId || booking.assetId;
+        return resourceId === selectedAsset && booking.status !== 'Cancelled';
+      })
+      .sort((a, b) => {
+        const first = `${a.date} ${a.startTime}`;
+        const second = `${b.date} ${b.startTime}`;
+        return first.localeCompare(second);
+      });
+  }, [bookings, selectedAsset]);
+
+  const handleCreateBooking = (e) => {
+    e.preventDefault();
+    setFeedback({ type: '', message: '' });
+
+    if (!selectedAsset || !bookingDate || !startTime || !endTime) {
+      setFeedback({
+        type: 'error',
+        message: 'Please fill in all booking fields.',
+      });
+      return;
+    }
+
+    if (bookingDate < today) {
+      setFeedback({
+        type: 'error',
+        message: 'Booking date cannot be in the past.',
+      });
+      return;
+    }
+
+    if (startTime >= endTime) {
+      setFeedback({
+        type: 'error',
+        message: 'End time must be later than the start time.',
+      });
+      return;
+    }
+
+    const result = addBooking(
+      selectedAsset,
+      currentUser?.name || 'Employee',
+      bookingDate,
+      startTime,
+      endTime
+    );
+
+    if (!result?.ok) {
+      setFeedback({
+        type: 'error',
+        message:
+          result?.message ||
+          'Scheduling conflict: this resource is already booked for the selected slot.',
+      });
+      return;
+    }
+
+    setFeedback({
+      type: 'success',
+      message: 'Booking created successfully.',
+    });
+
+    setSelectedAsset('');
+    setBookingDate(today);
+    setStartTime('');
+    setEndTime('');
+  };
+
+  const handleCancelBooking = (bookingId) => {
+    setFeedback({ type: '', message: '' });
+
+    const result = cancelBooking(bookingId);
+
+    if (result?.ok) {
+      setFeedback({
+        type: 'success',
+        message: `Booking ${bookingId} has been cancelled.`,
+      });
+    } else {
+      setFeedback({
+        type: 'error',
+        message: result?.message || 'Unable to cancel booking.',
+      });
+    }
+  };
+
+  const canCancelBooking = (booking) => {
+    const owner = booking.user || booking.bookedBy;
+    const displayStatus = getDerivedBookingStatus(booking);
+
+    return (
+      displayStatus !== 'Completed' &&
+      displayStatus !== 'Cancelled' &&
+      (owner === currentUser?.name ||
+        currentUser?.role === 'Admin' ||
+        currentUser?.role === 'Department Head')
+    );
+  };
+
   return (
     <div className="space-y-8">
       <div>
@@ -142,17 +196,17 @@ export default function BookingsPage() {
         </p>
       </div>
 
-      {errorMessage && (
-        <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700">
-          {errorMessage}
+      {feedback.message ? (
+        <div
+          className={`rounded-xl border px-4 py-3 text-sm font-medium ${
+            feedback.type === 'success'
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+              : 'border-rose-200 bg-rose-50 text-rose-700'
+          }`}
+        >
+          {feedback.message}
         </div>
-      )}
-
-      {successMessage && (
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
-          {successMessage}
-        </div>
-      )}
+      ) : null}
 
       <div className="grid grid-cols-1 items-start gap-8 xl:grid-cols-3">
         <div className="premium-card space-y-4 p-6">
@@ -239,7 +293,7 @@ export default function BookingsPage() {
             </p>
             <p className="mt-2 text-sm text-slate-600">
               A booking is rejected if its time range overlaps an active booking for the same
-              resource, while back-to-back slots such as 10:00–11:00 after 09:00–10:00 are valid.
+              resource, while back-to-back slots such as 10:00-11:00 after 09:00-10:00 are valid.
             </p>
           </div>
         </div>
@@ -274,11 +328,10 @@ export default function BookingsPage() {
                   className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs"
                 >
                   <option value="All">All statuses</option>
-                  <option value="Confirmed">Confirmed</option>
-                  <option value="Cancelled">Cancelled</option>
                   <option value="Upcoming">Upcoming</option>
                   <option value="Ongoing">Ongoing</option>
                   <option value="Completed">Completed</option>
+                  <option value="Cancelled">Cancelled</option>
                 </select>
               </div>
             </div>
@@ -296,47 +349,55 @@ export default function BookingsPage() {
                 </thead>
                 <tbody className="divide-y divide-slate-50 font-medium">
                   {filteredBookings.length > 0 ? (
-                    filteredBookings.map((booking) => (
-                      <tr key={booking.id} className="hover:bg-slate-50/50">
-                        <td className="py-3.5">
-                          <p className="font-bold text-slate-800">
-                            {booking.resourceName || booking.assetName || booking.resourceId}
-                          </p>
-                          <p className="text-[11px] text-slate-400">
-                            {booking.resourceId || booking.assetId}
-                          </p>
-                        </td>
-                        <td className="py-3.5 text-slate-700">
-                          {booking.user || booking.bookedBy}
-                        </td>
-                        <td className="py-3.5 font-mono text-slate-500">
-                          {booking.date} ({booking.startTime} - {booking.endTime})
-                        </td>
-                        <td className="py-3.5">
-                          <span
-                            className={`rounded px-2 py-0.5 text-[10px] font-bold uppercase ${getStatusBadge(
-                              booking.status
-                            )}`}
-                          >
-                            {booking.status}
-                          </span>
-                        </td>
-                        <td className="py-3.5 text-right">
-                          {booking.status === 'Confirmed' && canCancelBooking(booking) ? (
-                            <button
-                              onClick={() => handleCancelBooking(booking.id)}
-                              className="text-[11px] font-bold text-rose-600 hover:underline"
+                    filteredBookings.map((booking) => {
+                      const displayStatus = getDerivedBookingStatus(booking);
+
+                      return (
+                        <tr key={booking.id} className="hover:bg-slate-50/50">
+                          <td className="py-3.5">
+                            <p className="font-bold text-slate-800">
+                              {booking.resourceName || booking.assetName || booking.resourceId}
+                            </p>
+                            <p className="text-[11px] text-slate-400">
+                              {booking.resourceId || booking.assetId}
+                            </p>
+                          </td>
+
+                          <td className="py-3.5 text-slate-700">
+                            {booking.user || booking.bookedBy}
+                          </td>
+
+                          <td className="py-3.5 font-mono text-slate-500">
+                            {booking.date} ({booking.startTime} - {booking.endTime})
+                          </td>
+
+                          <td className="py-3.5">
+                            <span
+                              className={`rounded px-2 py-0.5 text-[10px] font-bold uppercase ${getStatusBadge(
+                                displayStatus
+                              )}`}
                             >
-                              Cancel Booking
-                            </button>
-                          ) : (
-                            <span className="text-[11px] italic text-slate-300">
-                              No Action
+                              {displayStatus}
                             </span>
-                          )}
-                        </td>
-                      </tr>
-                    ))
+                          </td>
+
+                          <td className="py-3.5 text-right">
+                            {canCancelBooking(booking) ? (
+                              <button
+                                onClick={() => handleCancelBooking(booking.id)}
+                                className="text-[11px] font-bold text-rose-600 hover:underline"
+                              >
+                                Cancel Booking
+                              </button>
+                            ) : (
+                              <span className="text-[11px] italic text-slate-300">
+                                No Action
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })
                   ) : (
                     <tr>
                       <td
@@ -362,33 +423,49 @@ export default function BookingsPage() {
               </p>
             </div>
 
+            {selectedResource ? (
+              <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                <p className="text-sm font-semibold text-slate-800">
+                  {selectedResource.name} [{selectedResource.id}]
+                </p>
+                <p className="mt-1 text-xs text-slate-500">
+                  Location: {selectedResource.location} • Category: {selectedResource.category}
+                </p>
+              </div>
+            ) : null}
+
             <div className="mt-5 space-y-3">
               {selectedAsset ? (
                 selectedResourceBookings.length > 0 ? (
-                  selectedResourceBookings.map((booking) => (
-                    <div
-                      key={booking.id}
-                      className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3"
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <p className="text-sm font-semibold text-slate-800">
-                            {booking.date} · {booking.startTime} - {booking.endTime}
-                          </p>
-                          <p className="mt-1 text-xs text-slate-500">
-                            Reserved by {booking.user || booking.bookedBy}
-                          </p>
+                  selectedResourceBookings.map((booking) => {
+                    const displayStatus = getDerivedBookingStatus(booking);
+
+                    return (
+                      <div
+                        key={booking.id}
+                        className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3"
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-semibold text-slate-800">
+                              {booking.date} · {booking.startTime} - {booking.endTime}
+                            </p>
+                            <p className="mt-1 text-xs text-slate-500">
+                              Reserved by {booking.user || booking.bookedBy}
+                            </p>
+                          </div>
+
+                          <span
+                            className={`rounded-full px-3 py-1 text-[10px] font-bold uppercase ${getStatusBadge(
+                              displayStatus
+                            )}`}
+                          >
+                            {displayStatus}
+                          </span>
                         </div>
-                        <span
-                          className={`rounded-full px-3 py-1 text-[10px] font-bold uppercase ${getStatusBadge(
-                            booking.status
-                          )}`}
-                        >
-                          {booking.status}
-                        </span>
                       </div>
-                    </div>
-                  ))
+                    );
+                  })
                 ) : (
                   <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
                     No active bookings found for the selected resource.

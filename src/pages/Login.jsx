@@ -24,7 +24,7 @@ export default function Login() {
 
   const isValidEmail = (value) => /\S+@\S+\.\S+/.test(value);
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
     setStatusMessage({ type: '', text: '' });
 
@@ -67,7 +67,11 @@ export default function Login() {
       return;
     }
 
-    const result = loginUser(userMatch.email, userMatch.role, cleanPassword);
+    const result = await loginUser({
+      email: userMatch.email,
+      role: userMatch.role,
+      password: cleanPassword,
+    });
 
     if (result?.ok) {
       setStatusMessage({
@@ -83,7 +87,7 @@ export default function Login() {
     }
   };
 
-  const handleSignup = (e) => {
+  const handleSignup = async (e) => {
     e.preventDefault();
     setStatusMessage({ type: '', text: '' });
 
@@ -145,7 +149,24 @@ export default function Login() {
     };
 
     setEmployees((prev) => [...prev, newEmployeeAccount]);
-    signupUser(cleanName, cleanEmail, cleanPassword);
+
+    const result = await signupUser({
+      name: cleanName,
+      email: cleanEmail,
+      password: cleanPassword,
+      role: 'Employee',
+      departmentId: 101,
+      status: 'Active',
+    });
+
+    if (!result?.ok) {
+      setStatusMessage({
+        type: 'error',
+        text: result?.message || 'Signup failed.',
+      });
+      return;
+    }
+
     addActivityLog(`Created employee account for ${cleanName}`, cleanName);
 
     setStatusMessage({
@@ -198,7 +219,7 @@ export default function Login() {
     });
   };
 
-  const handleDemoLogin = (role) => {
+  const handleDemoLogin = async (role) => {
     setStatusMessage({ type: '', text: '' });
 
     const demoUser = employees.find(
@@ -213,7 +234,11 @@ export default function Login() {
       return;
     }
 
-    const result = loginUser(demoUser.email, demoUser.role, 'password123');
+    const result = await loginUser({
+      email: demoUser.email,
+      role: demoUser.role,
+      password: 'password123',
+    });
 
     if (result?.ok) {
       setEmail(demoUser.email);

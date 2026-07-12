@@ -36,7 +36,7 @@ export default function AssetDirectory() {
   const canManageInventory =
     currentUser?.role === 'Admin' || currentUser?.role === 'Asset Manager';
 
-  const handleAddAsset = (e) => {
+  const handleAddAsset = async (e) => {
     e.preventDefault();
 
     if (!form.name || !form.category || !form.location) {
@@ -47,7 +47,38 @@ export default function AssetDirectory() {
       return;
     }
 
-    const result = addAsset(form);
+    const selectedCategoryItem = categories.find(
+      (category) => category.name === form.category
+    );
+
+    const selectedDepartmentItem = departments.find(
+      (department) => department.name === form.department
+    );
+
+    const payload = {
+      asset_name: form.name,
+      category_id: selectedCategoryItem?.id,
+      department_id: selectedDepartmentItem?.id || null,
+      serial_number: form.serialNumber,
+      acquisition_date: form.acquisitionDate || null,
+      acquisition_cost: form.acquisitionCost || null,
+      condition_status: form.condition,
+      location: form.location,
+      is_bookable: form.isBookable,
+      notes: form.notes,
+      category_name: form.category,
+      department_name: form.department,
+      name: form.name,
+      category: form.category,
+      serialNumber: form.serialNumber,
+      acquisitionDate: form.acquisitionDate,
+      acquisitionCost: form.acquisitionCost,
+      condition: form.condition,
+      department: form.department,
+      isBookable: form.isBookable,
+    };
+
+    const result = await addAsset(payload);
 
     if (result?.ok) {
       setFeedback({

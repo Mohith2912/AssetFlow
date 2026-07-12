@@ -41,6 +41,23 @@ const normalizeEmployee = (item) => ({
   raw: item,
 });
 
+const normalizeCategory = (item) => ({
+  id: item?.id ?? Date.now(),
+  name: item?.name || item?.category_name || '',
+  description: item?.description || '',
+  status: item?.status || 'Active',
+  raw: item,
+});
+
+const normalizeDepartment = (item) => ({
+  id: item?.id ?? Date.now(),
+  name: item?.name || item?.department_name || '',
+  head: item?.head || '',
+  parentDepartment: item?.parentDepartment || item?.parent_department_id || '',
+  status: item?.status || 'Active',
+  raw: item,
+});
+
 const normalizeAuthUser = (item, fallbackEmail = '', fallbackRole = 'Employee') => ({
   id: item?.id ?? Date.now(),
   apiId: item?.id ?? null,
@@ -131,9 +148,89 @@ export const MockDataProvider = ({ children }) => {
     name: 'AssetFlow Demo Workspace',
   });
 
-  const [departments, setDepartments] = useState([]);
-  const [categories, setCategories] = useState([]);
-  const [employees, setEmployees] = useState([]);
+  const [departments, setDepartments] = useState([
+    {
+      id: 1,
+      name: 'Administration',
+      head: '',
+      parentDepartment: '',
+      status: 'Active',
+      raw: null,
+    },
+    {
+      id: 2,
+      name: 'IT',
+      head: '',
+      parentDepartment: '',
+      status: 'Active',
+      raw: null,
+    },
+    {
+      id: 3,
+      name: 'Operations',
+      head: '',
+      parentDepartment: '',
+      status: 'Active',
+      raw: null,
+    },
+  ]);
+
+  const [categories, setCategories] = useState([
+    {
+      id: 1,
+      name: 'Electronics',
+      description: 'Laptops, desktops, tablets and accessories',
+      status: 'Active',
+      raw: null,
+    },
+    {
+      id: 2,
+      name: 'Furniture',
+      description: 'Office furniture and fixtures',
+      status: 'Active',
+      raw: null,
+    },
+    {
+      id: 3,
+      name: 'Vehicles',
+      description: 'Cars, vans and transport vehicles',
+      status: 'Active',
+      raw: null,
+    },
+    {
+      id: 4,
+      name: 'Rooms',
+      description: 'Meeting rooms and shared office spaces',
+      status: 'Active',
+      raw: null,
+    },
+  ]);
+
+  const [employees, setEmployees] = useState([
+    {
+      id: 1,
+      apiId: null,
+      name: 'Demo Admin',
+      email: 'admin@assetflow.com',
+      departmentId: 101,
+      role: 'Admin',
+      status: 'Active',
+      department: 'Administration',
+      raw: null,
+    },
+    {
+      id: 2,
+      apiId: null,
+      name: 'Demo Employee',
+      email: 'employee@assetflow.com',
+      departmentId: 102,
+      role: 'Employee',
+      status: 'Active',
+      department: 'Operations',
+      raw: null,
+    },
+  ]);
+
   const [assets, setAssets] = useState([]);
   const [allocations, setAllocations] = useState([]);
   const [transferRequests, setTransferRequests] = useState([]);
@@ -174,6 +271,7 @@ export const MockDataProvider = ({ children }) => {
           assetsResponse,
           departmentsResponse,
           employeesResponse,
+          categoriesResponse,
           allocationsResponse,
           bookingsResponse,
           maintenanceResponse,
@@ -185,6 +283,7 @@ export const MockDataProvider = ({ children }) => {
           api.get('/assets').catch(() => null),
           api.get('/departments').catch(() => null),
           api.get('/employees').catch(() => null),
+          api.get('/categories').catch(() => null),
           api.get('/allocations/transfers').catch(() => null),
           api.get('/bookings').catch(() => null),
           api.get('/maintenance').catch(() => null),
@@ -201,21 +300,54 @@ export const MockDataProvider = ({ children }) => {
 
         if (departmentsResponse?.data) {
           const nextDepartments = Array.isArray(departmentsResponse.data) ? departmentsResponse.data : [];
-          setDepartments(
-            nextDepartments.map((item) => ({
-              id: item.id,
-              name: item.name || item.department_name,
-              head: item.head || '',
-              parentDepartment: item.parentDepartment || '',
-              status: item.status || 'Active',
-              raw: item,
-            }))
-          );
+          if (nextDepartments.length > 0) {
+            setDepartments(nextDepartments.map(normalizeDepartment));
+          }
         }
 
         if (employeesResponse?.data) {
           const nextEmployees = Array.isArray(employeesResponse.data) ? employeesResponse.data : [];
-          setEmployees(nextEmployees.map(normalizeEmployee));
+          setEmployees((prev) => {
+            const apiEmployees = nextEmployees.map(normalizeEmployee);
+            const hasAdmin = apiEmployees.some(
+              (emp) => emp.role === 'Admin' && (!emp.status || emp.status === 'Active')
+            );
+
+            return hasAdmin
+              ? apiEmployees
+              : [
+                  ...apiEmployees,
+                  {
+                    id: 1,
+                    apiId: null,
+                    name: 'Demo Admin',
+                    email: 'admin@assetflow.com',
+                    departmentId: 101,
+                    role: 'Admin',
+                    status: 'Active',
+                    department: 'Administration',
+                    raw: null,
+                  },
+                  {
+                    id: 2,
+                    apiId: null,
+                    name: 'Demo Employee',
+                    email: 'employee@assetflow.com',
+                    departmentId: 102,
+                    role: 'Employee',
+                    status: 'Active',
+                    department: 'Operations',
+                    raw: null,
+                  },
+                ];
+          });
+        }
+
+        if (categoriesResponse?.data) {
+          const nextCategories = Array.isArray(categoriesResponse.data) ? categoriesResponse.data : [];
+          if (nextCategories.length > 0) {
+            setCategories(nextCategories.map(normalizeCategory));
+          }
         }
 
         if (allocationsResponse?.data) {

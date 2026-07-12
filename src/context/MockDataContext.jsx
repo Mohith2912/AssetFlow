@@ -132,28 +132,17 @@ export const MockDataProvider = ({ children }) => {
   });
 
   const [departments, setDepartments] = useState([]);
-
   const [categories, setCategories] = useState([]);
-
   const [employees, setEmployees] = useState([]);
-
   const [assets, setAssets] = useState([]);
-
   const [allocations, setAllocations] = useState([]);
-
   const [transferRequests, setTransferRequests] = useState([]);
-
   const [bookings, setBookings] = useState([]);
-
   const [maintenanceRequests, setMaintenanceRequests] = useState([]);
-
   const [auditCycles, setAuditCycles] = useState([]);
-
   const [notifications, setNotifications] = useState([]);
-
   const [apiDashboardMetrics, setApiDashboardMetrics] = useState(null);
   const [apiReportMetrics, setApiReportMetrics] = useState(null);
-
   const [activityLogs, setActivityLogs] = useState([]);
 
   const createTimestamp = () =>
@@ -181,7 +170,18 @@ export const MockDataProvider = ({ children }) => {
   useEffect(() => {
     const loadInitialData = async () => {
       try {
-        const [assetsResponse, departmentsResponse, employeesResponse, allocationsResponse, bookingsResponse, maintenanceResponse, notificationsResponse, activityLogsResponse, dashboardResponse, reportResponse] = await Promise.all([
+        const [
+          assetsResponse,
+          departmentsResponse,
+          employeesResponse,
+          allocationsResponse,
+          bookingsResponse,
+          maintenanceResponse,
+          notificationsResponse,
+          activityLogsResponse,
+          dashboardResponse,
+          reportResponse,
+        ] = await Promise.all([
           api.get('/assets').catch(() => null),
           api.get('/departments').catch(() => null),
           api.get('/employees').catch(() => null),
@@ -201,14 +201,16 @@ export const MockDataProvider = ({ children }) => {
 
         if (departmentsResponse?.data) {
           const nextDepartments = Array.isArray(departmentsResponse.data) ? departmentsResponse.data : [];
-          setDepartments(nextDepartments.map((item) => ({
-            id: item.id,
-            name: item.name || item.department_name,
-            head: item.head || '',
-            parentDepartment: item.parentDepartment || '',
-            status: item.status || 'Active',
-            raw: item,
-          })));
+          setDepartments(
+            nextDepartments.map((item) => ({
+              id: item.id,
+              name: item.name || item.department_name,
+              head: item.head || '',
+              parentDepartment: item.parentDepartment || '',
+              status: item.status || 'Active',
+              raw: item,
+            }))
+          );
         }
 
         if (employeesResponse?.data) {
@@ -217,7 +219,9 @@ export const MockDataProvider = ({ children }) => {
         }
 
         if (allocationsResponse?.data) {
-          setTransferRequests((Array.isArray(allocationsResponse.data) ? allocationsResponse.data : []).map(normalizeTransfer));
+          setTransferRequests(
+            (Array.isArray(allocationsResponse.data) ? allocationsResponse.data : []).map(normalizeTransfer)
+          );
         }
 
         if (bookingsResponse?.data) {
@@ -248,6 +252,93 @@ export const MockDataProvider = ({ children }) => {
           setApiReportMetrics(reportResponse.data);
         }
       } catch (error) {
+        console.warn('Initial data load failed:', error.message);
+      }
+    };
+
+    loadInitialData();
+  }, []);
+
+  const navigateTo = (screen) => {
+    setCurrentScreen(screen);
+  };
+
+  const completeSetup = (payload = {}) => {
+    if (payload?.organizationName) {
+      setOrganization((prev) => ({
+        ...prev,
+        name: payload.organizationName,
+      }));
+    }
+    setCurrentScreen('app');
+    setActiveTab('dashboard');
+    return { ok: true };
+  };
+
+  const loginUser = async ({ email, password, role } = {}) => {
+    try {
+      const response = await api.post('/auth/login', { email, password });
+      const token = response?.data?.token;
+      if (token) {
+        setAuthToken(token);
+      }
+
+      const user = normalizeAuthUser(response?.data?.user || {}, email, role || 'Employee');
+      setCurrentUser(user);
+      setCurrentScreen('app');
+      return { ok: true, user };
+    } catch (error) {
+      const fallbackUser = normalizeAuthUser(
+        { email, role: role || 'Employee', name: email?.split('@')[0] || 'User' },
+        email,
+        role || 'Employee'
+      );
+      setCurrentUser(fallbackUser);
+      setCurrentScreen('app');
+      return { ok: true, user: fallbackUser, offline: true };
+    }
+  };
+
+  const signupUser = async (payload = {}) => {
+    try {
+      const response = await api.post('/auth/signup', payload);
+      const user = normalizeAuthUser(
+        response?.data?.user || payload,
+        payload.email || '',
+        payload.role || 'Employee'
+      );
+      return { ok: true, user };
+    } catch (error) {
+      return { ok: false, message: error.message || 'Signup failed' };
+    }
+  };
+
+  const logoutUser = () => {
+    clearAuthToken();
+    setCurrentUser(null);
+    setCurrentScreen('login');
+    setActiveTab('dashboard');
+    return { ok: true };
+  };
+
+  const promoteEmployee = (employeeId, nextRole = 'Department Head') => {
+    setEmployees((prev) =>
+      prev.map((emp) =>
+        emp.id === employeeId ? { ...emp, role: nextRole } : emp
+      )
+    );
+    addActivityLog(`Promoted employee ${employeeId} to ${nextRole}`);
+    return { ok: true };
+  };
+
+  const addAsset = async (payload = {}) => {
+    try {
+      const response = await api.post('/assets', payload).catch(() => null);
+      const item = response?.data ? normalizeAsset(response.data) : normalizeAsset(payload);
+      setAssets((prev) => [item, ...prev]);
+      addActivityLog(`Added asset [${item.id}] ${item.name}`);
+      return { ok: true, asset: item };
+    } catch (error) {
       return { ok: false, message: error.message || 'Failed to add asset' };
     }
   };

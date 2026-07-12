@@ -1,5 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useMockData } from '../context/MockDataContext';
+import AppShell from '../app/AppShell';
+
 import AssetDirectory from './AssetDirectory';
 import AllocationsPage from './AllocationsPage';
 import BookingsPage from './BookingsPage';
@@ -8,6 +10,7 @@ import AuditPage from './AuditPage';
 import ReportsPage from './ReportsPage';
 import NotificationsPage from './NotificationsPage';
 import OrgSetup from './OrgSetup';
+
 import AllocationModal from '../components/modals/AllocationModal';
 import BookingModal from '../components/modals/BookingModal';
 import MaintenanceModal from '../components/modals/MaintenanceModal';
@@ -178,7 +181,7 @@ function DashboardOverview({ onOpenAllocation, onOpenBooking, onOpenMaintenance 
       </div>
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-        <div className="premium-card xl:col-span-2 p-6">
+        <div className="premium-card p-6 xl:col-span-2">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-lg font-bold text-slate-900">Overdue returns</h2>
@@ -281,9 +284,7 @@ function DashboardOverview({ onOpenAllocation, onOpenBooking, onOpenMaintenance 
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="font-semibold text-amber-900">{request.assetId}</p>
-                      <p className="mt-1 text-sm text-amber-800">
-                        {request.description}
-                      </p>
+                      <p className="mt-1 text-sm text-amber-800">{request.description}</p>
                     </div>
                     <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-bold uppercase text-amber-700 shadow-sm">
                       {request.status}
@@ -457,6 +458,101 @@ export default function Dashboard() {
     { key: 'activity', label: 'Activity Logs', visible: isAdmin || isManager },
   ].filter((item) => item.visible);
 
+  const pageMeta = {
+    dashboard: {
+      title: 'Dashboard Overview',
+      subtitle: 'Live asset, booking, transfer, maintenance, and activity snapshot.',
+      actions: [
+        {
+          label: 'Register Asset',
+          onClick: () => setActiveTab('directory'),
+          className:
+            'rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800',
+        },
+        {
+          label: 'Book Resource',
+          onClick: () => setOpenBooking(true),
+          className:
+            'rounded-2xl bg-rose-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-rose-700',
+        },
+        {
+          label: 'Raise Maintenance',
+          onClick: () => setOpenMaintenance(true),
+          className:
+            'rounded-2xl bg-amber-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-amber-600',
+        },
+      ],
+    },
+    orgSetup: {
+      title: 'Organization Setup',
+      subtitle: 'Manage departments, categories, and employee roles.',
+      actions: [],
+    },
+    directory: {
+      title: 'Asset Directory',
+      subtitle: 'Register assets and review lifecycle, ownership, and search results.',
+      actions: [],
+    },
+    allocations: {
+      title: 'Allocations & Transfers',
+      subtitle: 'Assign assets, prevent duplicate custody, and process returns.',
+      actions: [
+        {
+          label: 'Allocate Asset',
+          onClick: () => setOpenAllocation(true),
+          className:
+            'rounded-2xl bg-violet-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-violet-700',
+        },
+      ],
+    },
+    bookings: {
+      title: 'Bookings',
+      subtitle: 'Manage shared resource schedules with overlap-safe booking flows.',
+      actions: [
+        {
+          label: 'New Booking',
+          onClick: () => setOpenBooking(true),
+          className:
+            'rounded-2xl bg-rose-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-rose-700',
+        },
+      ],
+    },
+    maintenance: {
+      title: 'Maintenance',
+      subtitle: 'Track approval, repair assignment, work-in-progress, and resolution.',
+      actions: [
+        {
+          label: 'Raise Request',
+          onClick: () => setOpenMaintenance(true),
+          className:
+            'rounded-2xl bg-amber-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-amber-600',
+        },
+      ],
+    },
+    audit: {
+      title: 'Asset Audit',
+      subtitle: 'Run audit cycles and identify missing or damaged assets.',
+      actions: [],
+    },
+    reports: {
+      title: 'Reports & Analytics',
+      subtitle: 'View operational insights across allocation, utilization, and maintenance.',
+      actions: [],
+    },
+    notifications: {
+      title: 'Notifications',
+      subtitle: 'Review alerts, reminders, approvals, and overdue events.',
+      actions: [],
+    },
+    activity: {
+      title: 'Activity Logs',
+      subtitle: 'See the full history of actions across the ERP workspace.',
+      actions: [],
+    },
+  };
+
+  const currentPageMeta = pageMeta[activeTab] || pageMeta.dashboard;
+
   const renderActivePage = () => {
     if (activeTab === 'orgSetup' && !canAccessOrgSetup) {
       return (
@@ -501,65 +597,19 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="min-h-screen">
-      <div className="flex min-h-screen flex-col lg:flex-row">
-        <aside className="sidebar-glow w-full border-b border-white/10 text-white lg:relative lg:min-h-screen lg:w-72 lg:border-b-0 lg:border-r">
-          <div className="border-b border-white/10 px-6 py-6">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-white/55">
-              Enterprise ERP
-            </p>
-            <h1 className="mt-2 text-2xl font-bold tracking-tight text-white">
-              AssetFlow
-            </h1>
-            <p className="mt-2 text-sm text-slate-300">
-              Asset & Resource Management System
-            </p>
-          </div>
-
-          <div className="px-4 py-4">
-            <div className="glass-card mb-4 rounded-2xl p-4">
-              <p className="text-xs uppercase tracking-[0.18em] text-slate-500">
-                Session
-              </p>
-              <p className="mt-2 text-sm font-semibold text-slate-900">
-                {currentUser?.name || 'User'}
-              </p>
-              <p className="text-xs text-slate-500">
-                {currentUser?.role || 'Employee'}
-              </p>
-            </div>
-
-            <nav className="space-y-2">
-              {navItems.map((item) => (
-                <button
-                  key={item.key}
-                  onClick={() => setActiveTab(item.key)}
-                  className={`w-full rounded-2xl px-4 py-3 text-left text-sm font-medium transition ${
-                    activeTab === item.key
-                      ? 'bg-white text-slate-900 shadow-lg'
-                      : 'text-slate-200 hover:bg-white/10 hover:text-white'
-                  }`}
-                >
-                  {item.label}
-                </button>
-              ))}
-            </nav>
-          </div>
-
-          <div className="mt-auto px-4 pb-6 lg:absolute lg:bottom-0 lg:w-72">
-            <button
-              onClick={logoutUser}
-              className="w-full rounded-2xl border border-white/10 bg-white/10 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/20"
-            >
-              Sign out
-            </button>
-          </div>
-        </aside>
-
-        <main className="flex-1 p-4 md:p-6 lg:p-8">
-          <div className="mx-auto max-w-7xl">{renderActivePage()}</div>
-        </main>
-      </div>
+    <>
+      <AppShell
+        currentUser={currentUser}
+        navItems={navItems}
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        logoutUser={logoutUser}
+        title={currentPageMeta.title}
+        subtitle={currentPageMeta.subtitle}
+        actions={currentPageMeta.actions}
+      >
+        {renderActivePage()}
+      </AppShell>
 
       <AllocationModal
         isOpen={openAllocation}
@@ -567,7 +617,11 @@ export default function Dashboard() {
         assets={assets}
         employees={employees}
         onSubmit={(data) =>
-          allocateAsset?.(data.assetId, data.employeeId || data.employeeName, data.expectedReturnDate)
+          allocateAsset?.(
+            data.assetId,
+            data.employeeId || data.employeeName,
+            data.expectedReturnDate
+          )
         }
       />
 
@@ -584,6 +638,6 @@ export default function Dashboard() {
         assets={assets}
         onSubmit={(data) => addMaintenanceRequest?.(data)}
       />
-    </div>
+    </>
   );
 }

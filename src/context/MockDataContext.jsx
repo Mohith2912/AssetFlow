@@ -1,6 +1,126 @@
-import React, { createContext, useContext, useMemo, useState } from 'react';
+import React, { createContext, useContext, useMemo, useState, useEffect } from 'react';
+import { api, setAuthToken, clearAuthToken } from '../api/client';
 
 const MockDataContext = createContext(null);
+
+const normalizeAsset = (item) => {
+  const status = String(item?.status || item?.lifecycle_status || 'Available');
+  const normalizedStatus = status
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (character) => character.toUpperCase());
+
+  return {
+    id: item?.asset_code || item?.id || 'AF-0000',
+    apiId: item?.id ?? null,
+    name: item?.name || item?.asset_name || '',
+    category: item?.category || item?.category_name || '',
+    status: normalizedStatus,
+    currentHolder: item?.currentHolder || null,
+    location: item?.location || '',
+    department: item?.department || item?.department_name || '',
+    condition: item?.condition || item?.condition_status || 'Good',
+    acquisitionDate: item?.acquisitionDate || item?.acquisition_date || '',
+    acquisitionCost: item?.acquisitionCost || item?.acquisition_cost || '',
+    notes: item?.notes || '',
+    serialNumber: item?.serialNumber || item?.serial_number || '',
+    isBookable: Boolean(item?.isBookable ?? item?.is_bookable ?? false),
+    expectedReturnDate: item?.expectedReturnDate || '',
+    raw: item,
+  };
+};
+
+const normalizeEmployee = (item) => ({
+  id: item?.id ?? Date.now(),
+  apiId: item?.id ?? null,
+  name: item?.name || item?.full_name || '',
+  email: item?.email || '',
+  departmentId: item?.department_id ?? item?.departmentId ?? 1,
+  role: item?.role || 'Employee',
+  status: item?.status || 'Active',
+  department: item?.department || '',
+  raw: item,
+});
+
+const normalizeAuthUser = (item, fallbackEmail = '', fallbackRole = 'Employee') => ({
+  id: item?.id ?? Date.now(),
+  apiId: item?.id ?? null,
+  name: item?.name || item?.full_name || fallbackEmail.split('@')[0] || 'User',
+  email: item?.email || fallbackEmail,
+  role: item?.role || fallbackRole,
+  departmentId: item?.department_id ?? item?.departmentId ?? 1,
+  status: item?.status || 'Active',
+  raw: item,
+});
+
+const normalizeAllocation = (item) => ({
+  id: item?.id ? `ALC-${item.id}` : `ALC-${Date.now()}`,
+  apiId: item?.id ?? null,
+  assetId: item?.asset_code || item?.assetId || item?.asset_id,
+  assetName: item?.asset_name || '',
+  assignedTo: item?.user_name || item?.assignedTo || '',
+  assignedBy: item?.assigned_by || item?.assignedBy || '',
+  date: item?.allocation_date || item?.date || '',
+  expectedReturnDate: item?.expected_return_date || item?.expectedReturnDate || '',
+  status: item?.status || item?.allocation_status || 'Active',
+  raw: item,
+});
+
+const normalizeTransfer = (item) => ({
+  id: item?.id ? `TRF-${item.id}` : `TRF-${Date.now()}`,
+  apiId: item?.id ?? null,
+  assetId: item?.asset_code || item?.assetId || item?.asset_id,
+  assetName: item?.asset_name || '',
+  fromEmployee: item?.fromEmployee || item?.current_holder || '',
+  toEmployee: item?.toEmployee || item?.target_user || '',
+  requestedBy: item?.requestedBy || item?.requester || '',
+  status: item?.status || item?.request_status || 'Requested',
+  requestedDate: item?.requestedDate || item?.requested_at || '',
+  raw: item,
+});
+
+const normalizeBooking = (item) => ({
+  id: item?.id ? `BK-${item.id}` : `BK-${Date.now()}`,
+  apiId: item?.id ?? null,
+  resourceId: item?.asset_code || item?.resourceId || item?.asset_id,
+  resourceName: item?.asset_name || item?.resourceName || '',
+  user: item?.user_name || item?.user || item?.booked_by_user_id,
+  date: item?.date || (item?.start_time ? item.start_time.split('T')[0] : ''),
+  startTime: item?.start_time ? item.start_time.split('T')[1]?.slice(0, 5) : item?.startTime || '',
+  endTime: item?.end_time ? item.end_time.split('T')[1]?.slice(0, 5) : item?.endTime || '',
+  status: item?.status || item?.booking_status || 'Confirmed',
+  raw: item,
+});
+
+const normalizeMaintenance = (item) => ({
+  id: item?.id ? `MNT-${item.id}` : `MNT-${Date.now()}`,
+  apiId: item?.id ?? null,
+  assetId: item?.asset_code || item?.assetId || item?.asset_id,
+  description: item?.description || item?.reason || item?.issue_description || '',
+  priority: item?.priority || 'Medium',
+  status: item?.status || item?.maintenance_status || 'Pending',
+  requestedBy: item?.requested_by_name || item?.requestedBy || '',
+  technician: item?.technician || item?.technician_name || '',
+  raw: item,
+});
+
+const normalizeNotification = (item) => ({
+  id: item?.id ? `NTF-${item.id}` : `NTF-${Date.now()}`,
+  apiId: item?.id ?? null,
+  type: item?.type || item?.notification_type || item?.title || 'Notification',
+  message: item?.message || '',
+  audience: item?.audience || 'User',
+  timestamp: item?.timestamp || item?.createdAt || '',
+  read: Boolean(item?.read ?? item?.isRead ?? false),
+  raw: item,
+});
+
+const normalizeActivityLog = (item) => ({
+  id: item?.id ?? Date.now(),
+  user: item?.user_name || item?.user || 'System',
+  action: item?.action || item?.description || item?.action_type || '',
+  timestamp: item?.timestamp || item?.createdAt || '',
+  raw: item,
+});
 
 export const MockDataProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(null);
@@ -11,227 +131,30 @@ export const MockDataProvider = ({ children }) => {
     name: 'AssetFlow Demo Workspace',
   });
 
-  const [departments, setDepartments] = useState([
-    { id: 101, name: 'Engineering', head: 'Navaneeth', parentDepartment: '', status: 'Active' },
-    { id: 102, name: 'Design & UX', head: 'Nadya', parentDepartment: '', status: 'Active' },
-    { id: 103, name: 'Operations', head: '', parentDepartment: '', status: 'Active' },
-  ]);
+  const [departments, setDepartments] = useState([]);
 
-  const [categories, setCategories] = useState([
-    { id: 1, name: 'Electronics', warrantyPeriod: '24 Months' },
-    { id: 2, name: 'Spaces', warrantyPeriod: 'N/A' },
-    { id: 3, name: 'Furniture', warrantyPeriod: '12 Months' },
-  ]);
+  const [categories, setCategories] = useState([]);
 
-  const [employees, setEmployees] = useState([
-    {
-      id: 1,
-      name: 'Navaneeth',
-      email: 'navaneeth@company.com',
-      departmentId: 101,
-      role: 'Admin',
-      status: 'Active',
-    },
-    {
-      id: 2,
-      name: 'Poshika',
-      email: 'poshika@company.com',
-      departmentId: 101,
-      role: 'Asset Manager',
-      status: 'Active',
-    },
-    {
-      id: 3,
-      name: 'Nadya',
-      email: 'nadya@company.com',
-      departmentId: 102,
-      role: 'Department Head',
-      status: 'Active',
-    },
-    {
-      id: 4,
-      name: 'Mohith',
-      email: 'mohith@company.com',
-      departmentId: 103,
-      role: 'Employee',
-      status: 'Active',
-    },
-  ]);
+  const [employees, setEmployees] = useState([]);
 
-  const [assets, setAssets] = useState([
-    {
-      id: 'AF-0001',
-      name: 'MacBook Pro M3',
-      category: 'Electronics',
-      status: 'Allocated',
-      currentHolder: 'Mohith',
-      location: 'Lab 2',
-      department: 'Operations',
-      condition: 'Good',
-      acquisitionDate: '2026-06-20',
-      acquisitionCost: '145000',
-      notes: 'Demo laptop for allocation flow',
-      serialNumber: 'SN-MB-1001',
-      isBookable: false,
-      expectedReturnDate: '2026-07-10',
-    },
-    {
-      id: 'AF-0002',
-      name: 'Conference Room B2',
-      category: 'Spaces',
-      status: 'Available',
-      currentHolder: null,
-      location: 'Floor 2',
-      department: 'Engineering',
-      condition: 'Excellent',
-      acquisitionDate: '2026-05-10',
-      acquisitionCost: '',
-      notes: '',
-      serialNumber: 'SN-SP-2001',
-      isBookable: true,
-      expectedReturnDate: '',
-    },
-    {
-      id: 'AF-0003',
-      name: 'ThinkPad X1 Carbon',
-      category: 'Electronics',
-      status: 'Under Maintenance',
-      currentHolder: null,
-      location: 'IT Support Desk',
-      department: 'Engineering',
-      condition: 'Fair',
-      acquisitionDate: '2026-04-15',
-      acquisitionCost: '98000',
-      notes: 'Display issue under service',
-      serialNumber: 'SN-LT-3001',
-      isBookable: false,
-      expectedReturnDate: '',
-    },
-    {
-      id: 'AF-0004',
-      name: 'Projector Epson X8',
-      category: 'Electronics',
-      status: 'Available',
-      currentHolder: null,
-      location: 'Meeting Hall',
-      department: 'Design & UX',
-      condition: 'Good',
-      acquisitionDate: '2026-03-05',
-      acquisitionCost: '52000',
-      notes: '',
-      serialNumber: 'SN-PJ-4001',
-      isBookable: true,
-      expectedReturnDate: '',
-    },
-  ]);
+  const [assets, setAssets] = useState([]);
 
-  const [allocations, setAllocations] = useState([
-    {
-      id: 'ALC-1001',
-      assetId: 'AF-0001',
-      assetName: 'MacBook Pro M3',
-      assignedTo: 'Mohith',
-      assignedBy: 'Navaneeth',
-      date: '2026-07-08',
-      expectedReturnDate: '2026-07-10',
-      status: 'Active',
-    },
-  ]);
+  const [allocations, setAllocations] = useState([]);
 
-  const [transferRequests, setTransferRequests] = useState([
-    {
-      id: 'TRF-1001',
-      assetId: 'AF-0001',
-      assetName: 'MacBook Pro M3',
-      fromEmployee: 'Mohith',
-      toEmployee: 'Nadya',
-      requestedBy: 'Nadya',
-      status: 'Requested',
-      requestedDate: '2026-07-12',
-    },
-  ]);
+  const [transferRequests, setTransferRequests] = useState([]);
 
-  const [bookings, setBookings] = useState([
-    {
-      id: 'BK-501',
-      resourceId: 'AF-0002',
-      resourceName: 'Conference Room B2',
-      user: 'Nadya',
-      date: '2026-07-12',
-      startTime: '09:00',
-      endTime: '10:00',
-      status: 'Confirmed',
-    },
-  ]);
+  const [bookings, setBookings] = useState([]);
 
-  const [maintenanceRequests, setMaintenanceRequests] = useState([
-    {
-      id: 'MNT-1001',
-      assetId: 'AF-0003',
-      description: 'Keyboard and display issue',
-      priority: 'High',
-      status: 'In Progress',
-      requestedBy: 'Poshika',
-    },
-  ]);
+  const [maintenanceRequests, setMaintenanceRequests] = useState([]);
 
-  const [auditCycles, setAuditCycles] = useState([
-    {
-      id: 'AUD-1001',
-      name: 'July Engineering Audit',
-      scope: 'Engineering / Lab 2',
-      auditor: 'Nadya',
-      startDate: '2026-07-12',
-      endDate: '2026-07-14',
-      status: 'Open',
-      items: [
-        {
-          assetId: 'AF-0001',
-          assetName: 'MacBook Pro M3',
-          verificationStatus: 'Missing',
-        },
-        {
-          assetId: 'AF-0002',
-          assetName: 'Conference Room B2',
-          verificationStatus: 'Verified',
-        },
-      ],
-    },
-  ]);
+  const [auditCycles, setAuditCycles] = useState([]);
 
-  const [notifications, setNotifications] = useState([
-    {
-      id: 'NTF-1001',
-      type: 'Overdue Return Alert',
-      message: 'Asset AF-0001 is overdue for return.',
-      audience: 'Asset Manager',
-      timestamp: '2026-07-12 09:45:00',
-      read: false,
-    },
-    {
-      id: 'NTF-1002',
-      type: 'Booking Reminder',
-      message: 'Conference Room B2 booking starts at 09:00.',
-      audience: 'Nadya',
-      timestamp: '2026-07-12 08:30:00',
-      read: false,
-    },
-  ]);
+  const [notifications, setNotifications] = useState([]);
 
-  const [activityLogs, setActivityLogs] = useState([
-    {
-      id: 1,
-      user: 'Navaneeth',
-      action: 'User session authenticated cleanly',
-      timestamp: '2026-07-12 10:15:00',
-    },
-    {
-      id: 2,
-      user: 'System',
-      action: 'Overdue verification routine executed',
-      timestamp: '2026-07-12 09:00:00',
-    },
-  ]);
+  const [apiDashboardMetrics, setApiDashboardMetrics] = useState(null);
+  const [apiReportMetrics, setApiReportMetrics] = useState(null);
+
+  const [activityLogs, setActivityLogs] = useState([]);
 
   const createTimestamp = () =>
     new Date().toISOString().replace('T', ' ').substring(0, 19);
@@ -255,93 +178,78 @@ export const MockDataProvider = ({ children }) => {
     ]);
   };
 
-  const loginUser = (email, role) => {
-    const matchedEmployee = employees.find((emp) => emp.email === email);
-    let loggedInUser;
+  useEffect(() => {
+    const loadInitialData = async () => {
+      try {
+        const [assetsResponse, departmentsResponse, employeesResponse, allocationsResponse, bookingsResponse, maintenanceResponse, notificationsResponse, activityLogsResponse, dashboardResponse, reportResponse] = await Promise.all([
+          api.get('/assets').catch(() => null),
+          api.get('/departments').catch(() => null),
+          api.get('/employees').catch(() => null),
+          api.get('/allocations/transfers').catch(() => null),
+          api.get('/bookings').catch(() => null),
+          api.get('/maintenance').catch(() => null),
+          api.get('/notifications').catch(() => null),
+          api.get('/activity-logs').catch(() => null),
+          api.get('/dashboard/stats').catch(() => null),
+          api.get('/reports/analytics').catch(() => null),
+        ]);
 
-    if (matchedEmployee) {
-      loggedInUser = matchedEmployee;
-      setCurrentUser(matchedEmployee);
-      addActivityLog(`Signed in as ${matchedEmployee.role}`, matchedEmployee.name);
-    } else {
-      const username = email.split('@')[0];
-      loggedInUser = {
-        id: Date.now(),
-        name: username,
-        email,
-        role: role || 'Employee',
-        departmentId: 101,
-        status: 'Active',
-      };
-      setCurrentUser(loggedInUser);
-      addActivityLog(`Signed in as ${loggedInUser.role}`, username);
+        if (assetsResponse?.data) {
+          const nextAssets = Array.isArray(assetsResponse.data) ? assetsResponse.data : [];
+          setAssets(nextAssets.map(normalizeAsset));
+        }
+
+        if (departmentsResponse?.data) {
+          const nextDepartments = Array.isArray(departmentsResponse.data) ? departmentsResponse.data : [];
+          setDepartments(nextDepartments.map((item) => ({
+            id: item.id,
+            name: item.name || item.department_name,
+            head: item.head || '',
+            parentDepartment: item.parentDepartment || '',
+            status: item.status || 'Active',
+            raw: item,
+          })));
+        }
+
+        if (employeesResponse?.data) {
+          const nextEmployees = Array.isArray(employeesResponse.data) ? employeesResponse.data : [];
+          setEmployees(nextEmployees.map(normalizeEmployee));
+        }
+
+        if (allocationsResponse?.data) {
+          setTransferRequests((Array.isArray(allocationsResponse.data) ? allocationsResponse.data : []).map(normalizeTransfer));
+        }
+
+        if (bookingsResponse?.data) {
+          const nextBookings = Array.isArray(bookingsResponse.data) ? bookingsResponse.data : [];
+          setBookings(nextBookings.map(normalizeBooking));
+        }
+
+        if (maintenanceResponse?.data) {
+          const nextMaintenance = Array.isArray(maintenanceResponse.data) ? maintenanceResponse.data : [];
+          setMaintenanceRequests(nextMaintenance.map(normalizeMaintenance));
+        }
+
+        if (notificationsResponse?.data) {
+          const nextNotifications = Array.isArray(notificationsResponse.data) ? notificationsResponse.data : [];
+          setNotifications(nextNotifications.map(normalizeNotification));
+        }
+
+        if (activityLogsResponse?.data) {
+          const nextLogs = Array.isArray(activityLogsResponse.data) ? activityLogsResponse.data : [];
+          setActivityLogs(nextLogs.map(normalizeActivityLog));
+        }
+
+        if (dashboardResponse?.data) {
+          setApiDashboardMetrics(dashboardResponse.data);
+        }
+
+        if (reportResponse?.data) {
+          setApiReportMetrics(reportResponse.data);
+        }
+      } catch (error) {
+      return { ok: false, message: error.message || 'Failed to add asset' };
     }
-
-    setCurrentScreen('dashboard');
-    setActiveTab('dashboard');
-    return { ok: true, user: loggedInUser };
-  };
-
-  const logoutUser = () => {
-    addActivityLog('Signed out', currentUser?.name || 'User');
-    setCurrentUser(null);
-    setCurrentScreen('login');
-    setActiveTab('dashboard');
-    return { ok: true };
-  };
-
-  const navigateTo = (screen, tab = 'dashboard') => {
-    if (screen === 'orgSetup' && currentUser?.role !== 'Admin') {
-      return { ok: false, message: 'Only Admin can access Organization Setup.' };
-    }
-
-    setCurrentScreen(screen);
-    setActiveTab(tab);
-    return { ok: true };
-  };
-
-  const completeSetup = (orgName) => {
-    const finalOrgName = orgName?.trim() || organization.name;
-    setOrganization({ name: finalOrgName });
-    setCurrentScreen('dashboard');
-    setActiveTab('dashboard');
-    addActivityLog(`Organization setup completed: ${finalOrgName}`);
-    return { ok: true };
-  };
-
-  const promoteEmployee = (empId, newRole) => {
-    setEmployees((prev) =>
-      prev.map((employee) =>
-        employee.id === empId ? { ...employee, role: newRole } : employee
-      )
-    );
-    addActivityLog(`Promoted employee ID ${empId} to ${newRole}`);
-    return { ok: true };
-  };
-
-  const addAsset = (assetData) => {
-    const nextNumber = String(assets.length + 1).padStart(4, '0');
-
-    const newAsset = {
-      id: `AF-${nextNumber}`,
-      name: assetData.name,
-      category: assetData.category,
-      status: 'Available',
-      currentHolder: null,
-      location: assetData.location || 'Main Office',
-      department: assetData.department || '',
-      condition: assetData.condition || 'Good',
-      acquisitionDate: assetData.acquisitionDate || '',
-      acquisitionCost: assetData.acquisitionCost || '',
-      notes: assetData.notes || '',
-      serialNumber: assetData.serialNumber || `SN-${Date.now()}`,
-      isBookable: !!assetData.isBookable,
-      expectedReturnDate: '',
-    };
-
-    setAssets((prev) => [newAsset, ...prev]);
-    addActivityLog(`Registered new asset ${newAsset.id} - ${newAsset.name}`);
-    return { ok: true, asset: newAsset };
   };
 
   const validateAllocation = (assetId) => {
@@ -376,7 +284,7 @@ export const MockDataProvider = ({ children }) => {
     return { allowed: true };
   };
 
-  const allocateAsset = (assetId, employeeName, expectedReturnDate = '') => {
+  const allocateAsset = async (assetId, employeeName, expectedReturnDate = '') => {
     if (typeof assetId === 'object' && assetId !== null) {
       const payload = assetId;
       assetId = payload.assetId;
@@ -393,6 +301,18 @@ export const MockDataProvider = ({ children }) => {
       employees.find((emp) => emp.name === employeeName);
 
     const finalEmployeeName = employee?.name || employeeName;
+
+    try {
+      if (assetItem?.apiId && employee?.apiId) {
+        await api.post('/allocations', {
+          asset_id: assetItem.apiId,
+          user_id: employee.apiId,
+          expected_return_date: expectedReturnDate || new Date().toISOString().split('T')[0],
+        });
+      }
+    } catch (error) {
+      console.warn('Allocation API unavailable, using local state:', error.message);
+    }
 
     setAssets((prev) =>
       prev.map((asset) =>
@@ -625,7 +545,7 @@ export const MockDataProvider = ({ children }) => {
     return { allowed: true };
   };
 
-  const addBooking = (...args) => {
+  const addBooking = async (...args) => {
     let resourceId, user, date, startTime, endTime;
 
     if (typeof args[0] === 'object' && args[0] !== null) {
@@ -672,6 +592,23 @@ export const MockDataProvider = ({ children }) => {
 
     const validation = validateBooking(resourceId, date, startTime, endTime);
     if (!validation.allowed) return { ok: false, ...validation };
+
+    try {
+      if (resource?.apiId && currentUser?.apiId) {
+        const startDateTime = `${date}T${startTime}`;
+        const endDateTime = `${date}T${endTime}`;
+        await api.post('/bookings', {
+          asset_id: resource.apiId,
+          user_id: currentUser.apiId,
+          start_time: startDateTime,
+          end_time: endDateTime,
+          purpose: 'Shared resource booking',
+          status: 'upcoming',
+        });
+      }
+    } catch (error) {
+      console.warn('Booking API unavailable, using local state:', error.message);
+    }
 
     const newBooking = {
       id: `BK-${Date.now()}`,
@@ -731,7 +668,7 @@ export const MockDataProvider = ({ children }) => {
     return { ok: true };
   };
 
-  const raiseMaintenance = (...args) => {
+  const raiseMaintenance = async (...args) => {
     let assetId, description, priority;
 
     if (typeof args[0] === 'object' && args[0] !== null) {
@@ -751,6 +688,18 @@ export const MockDataProvider = ({ children }) => {
 
     if (asset.status === 'Retired' || asset.status === 'Disposed' || asset.status === 'Lost') {
       return { ok: false, message: 'This asset cannot enter maintenance workflow.' };
+    }
+
+    try {
+      if (asset?.apiId && currentUser?.apiId) {
+        await api.post('/maintenance', {
+          asset_id: asset.apiId,
+          reason: description,
+          notes: priority,
+        });
+      }
+    } catch (error) {
+      console.warn('Maintenance API unavailable, using local state:', error.message);
     }
 
     const newRequest = {
@@ -782,11 +731,22 @@ export const MockDataProvider = ({ children }) => {
 
   const addMaintenanceRequest = (payload) => raiseMaintenance(payload);
 
-  const updateMaintenanceStatus = (requestId, nextStatus) => {
+  const updateMaintenanceStatus = async (requestId, nextStatus) => {
     const request = maintenanceRequests.find((m) => m.id === requestId);
 
     if (!request) {
       return { ok: false, message: 'Maintenance request not found.' };
+    }
+
+    try {
+      if (request?.apiId) {
+        const payload = {
+          status: nextStatus.toLowerCase().replace(/ /g, '_'),
+        };
+        await api.patch(`/maintenance/${request.apiId}/status`, payload);
+      }
+    } catch (error) {
+      console.warn('Maintenance update API unavailable, using local state:', error.message);
     }
 
     setMaintenanceRequests((prev) =>
@@ -946,7 +906,7 @@ export const MockDataProvider = ({ children }) => {
       (a) => a.expectedReturnDate && a.status === 'Allocated' && !a.isOverdue
     ).length;
 
-    return {
+    const fallback = {
       assetsAvailable,
       assetsAllocated,
       maintenanceToday,
@@ -955,7 +915,20 @@ export const MockDataProvider = ({ children }) => {
       overdueReturns,
       upcomingReturns,
     };
-  }, [enrichedAssets, maintenanceRequests, bookings, transferRequests]);
+
+    if (!apiDashboardMetrics) return fallback;
+
+    return {
+      ...fallback,
+      assetsAvailable: apiDashboardMetrics.assetsAvailable ?? fallback.assetsAvailable,
+      assetsAllocated: apiDashboardMetrics.assetsAllocated ?? fallback.assetsAllocated,
+      maintenanceToday: apiDashboardMetrics.pendingMaintenance ?? fallback.maintenanceToday,
+      activeBookings: apiDashboardMetrics.activeBookings ?? fallback.activeBookings,
+      pendingTransfers: apiDashboardMetrics.pendingTransfers ?? fallback.pendingTransfers,
+      overdueReturns: apiDashboardMetrics.overdueReturns ?? fallback.overdueReturns,
+      upcomingReturns: fallback.upcomingReturns,
+    };
+  }, [enrichedAssets, maintenanceRequests, bookings, transferRequests, apiDashboardMetrics]);
 
   const reportData = useMemo(() => {
     const maintenanceByCategory = categories.map((category) => ({
@@ -991,7 +964,7 @@ export const MockDataProvider = ({ children }) => {
         ).length,
       }));
 
-    return {
+    const fallback = {
       maintenanceByCategory,
       allocationByDepartment,
       bookingUsage,
@@ -999,7 +972,17 @@ export const MockDataProvider = ({ children }) => {
       idleAssets: enrichedAssets.filter((a) => a.status === 'Available').length,
       utilizedAssets: enrichedAssets.filter((a) => a.status === 'Allocated').length,
     };
-  }, [enrichedAssets, maintenanceRequests, categories, departments, employees, bookings]);
+
+    if (!apiReportMetrics) return fallback;
+
+    const summary = apiReportMetrics.summary || {};
+    return {
+      ...fallback,
+      totalAssets: summary.totalAssets ?? fallback.totalAssets,
+      idleAssets: summary.assetsAvailable ?? fallback.idleAssets,
+      utilizedAssets: summary.assetsAllocated ?? fallback.utilizedAssets,
+    };
+  }, [enrichedAssets, maintenanceRequests, categories, departments, employees, bookings, apiReportMetrics]);
 
   return (
     <MockDataContext.Provider
@@ -1037,6 +1020,7 @@ export const MockDataProvider = ({ children }) => {
         dashboardStats,
         reportData,
         loginUser,
+        signupUser,
         logoutUser,
         navigateTo,
         completeSetup,

@@ -9,7 +9,8 @@ const requestSchema = Joi.object({
 });
 
 const statusSchema = Joi.object({
-  status: Joi.string().valid('pending', 'approved', 'rejected', 'resolved').required(),
+  status: Joi.string().valid('pending', 'approved', 'rejected', 'resolved', 'technician_assigned', 'in_progress').required(),
+  technician_name: Joi.string().trim().optional().allow(null, ''),
 });
 
 const maintenanceController = {
@@ -137,6 +138,62 @@ const maintenanceController = {
     }
   },
 
+  async updateStatus(req, res, next) {
+    try {
+      const { error, value } = statusSchema.validate(req.body);
+      if (error) {
+        return errorResponse(res, error.message, null, 400);
+      }
+
+      const request = await MaintenanceModel.findById(req.params.id);
+      if (!request) {
+        return errorResponse(res, 'Maintenance request not found', null, 404);
+      }
+
+      const statusMap = {
+        pending: 'Pending',
+        approved: 'Approved',
+        rejected: 'Rejected',
+        resolved: 'Resolved',
+        technician_assigned: 'Technician Assigned',
+        in_progress: 'In Progress',
+      };
+      const normalizedStatus = statusMap[value.status] || value.status;
+
+      const updates = { maintenance_status: normalizedStatus };
+      if (normalizedStatus === 'Approved') {
+        updates.approved_by = req.user.userId;
+        updates.approved_at = new Date();
+      } else if (normalizedStatus === 'Rejected') {
+        updates.approved_by = req.user.userId;
+        updates.approved_at = new Date();
+      } else if (normalizedStatus === 'Resolved') {
+        updates.resolved_at = new Date();
+      }
+
+      if (value.technician_name) {
+        updates.technician_name = value.technician_name;
+      }
+
+      await MaintenanceModel.updateStatus(req.params.id, updates);
+      if (normalizedStatus === 'Resolved') {
+        await MaintenanceModel.updateAssetStatus(request.asset_id, 'Available');
+      } else if (['Approved', 'Technician Assigned', 'In Progress'].includes(normalizedStatus)) {
+        await MaintenanceModel.updateAssetStatus(request.asset_id, 'Under Maintenance');
+      }
+      await MaintenanceModel.logActivity({
+        user_id: req.user.userId,
+        action: 'update_maintenance_status',
+        details: `Updated maintenance request ${req.params.id} to ${normalizedStatus}`,
+      });
+
+      const updated = await MaintenanceModel.findById(req.params.id);
+      return successResponse(res, 'Maintenance status updated', updated);
+    } catch (err) {
+      next(err);
+    }
+  },
+
   async resolve(req, res, next) {
     try {
       const { error, value } = statusSchema.validate(req.body);
@@ -158,11 +215,10 @@ const maintenanceController = {
       }
 
       await MaintenanceModel.updateStatus(req.params.id, {
-        status: 'resolved',
-        resolved_by: req.user.userId,
+        maintenance_status: 'Resolved',
         resolved_at: new Date(),
       });
-      await MaintenanceModel.updateAssetStatus(request.asset_id, 'available');
+      await MaintenanceModel.updateAssetStatus(request.asset_id, 'Available');
       await MaintenanceModel.logActivity({
         user_id: req.user.userId,
         action: 'resolve_maintenance',

@@ -16,44 +16,44 @@ const BookingModel = {
     const values = [];
 
     if (filters.asset_id) {
-      conditions.push('bookings.asset_id = ?');
+      conditions.push('resource_bookings.asset_id = ?');
       values.push(filters.asset_id);
     }
 
     if (filters.user_id) {
-      conditions.push('bookings.user_id = ?');
+      conditions.push('resource_bookings.booked_by_user_id = ?');
       values.push(filters.user_id);
     }
 
     if (filters.status) {
-      conditions.push('bookings.status = ?');
+      conditions.push('resource_bookings.booking_status = ?');
       values.push(filters.status);
     }
 
     if (filters.start_date) {
-      conditions.push('bookings.start_time >= ?');
+      conditions.push('resource_bookings.start_time >= ?');
       values.push(filters.start_date);
     }
 
     const sql = `
       SELECT
-        bookings.id,
-        bookings.asset_id,
-        assets.asset_code,
-        assets.name AS asset_name,
-        bookings.user_id,
-        users.name AS user_name,
-        bookings.start_time,
-        bookings.end_time,
-        bookings.status,
-        bookings.purpose,
-        bookings.created_at AS createdAt,
-        bookings.updated_at AS updatedAt
-      FROM bookings
-      LEFT JOIN assets ON bookings.asset_id = assets.id
-      LEFT JOIN users ON bookings.user_id = users.id
+        resource_bookings.id,
+        resource_bookings.asset_id,
+        assets.asset_tag AS asset_code,
+        assets.asset_name AS asset_name,
+        resource_bookings.booked_by_user_id AS user_id,
+        users.full_name AS user_name,
+        resource_bookings.start_time,
+        resource_bookings.end_time,
+        resource_bookings.booking_status AS status,
+        resource_bookings.booking_purpose AS purpose,
+        resource_bookings.created_at AS createdAt,
+        resource_bookings.updated_at AS updatedAt
+      FROM resource_bookings
+      LEFT JOIN assets ON resource_bookings.asset_id = assets.id
+      LEFT JOIN users ON resource_bookings.booked_by_user_id = users.id
       WHERE ${conditions.join(' AND ')}
-      ORDER BY bookings.start_time ASC
+      ORDER BY resource_bookings.start_time ASC
     `;
 
     const [rows] = await db.execute(sql, values);
@@ -63,22 +63,22 @@ const BookingModel = {
   async findById(id) {
     const [rows] = await db.execute(`
       SELECT
-        bookings.id,
-        bookings.asset_id,
-        assets.asset_code,
-        assets.name AS asset_name,
-        bookings.user_id,
-        users.name AS user_name,
-        bookings.start_time,
-        bookings.end_time,
-        bookings.status,
-        bookings.purpose,
-        bookings.created_at AS createdAt,
-        bookings.updated_at AS updatedAt
-      FROM bookings
-      LEFT JOIN assets ON bookings.asset_id = assets.id
-      LEFT JOIN users ON bookings.user_id = users.id
-      WHERE bookings.id = ?
+        resource_bookings.id,
+        resource_bookings.asset_id,
+        assets.asset_tag AS asset_code,
+        assets.asset_name AS asset_name,
+        resource_bookings.booked_by_user_id AS user_id,
+        users.full_name AS user_name,
+        resource_bookings.start_time,
+        resource_bookings.end_time,
+        resource_bookings.booking_status AS status,
+        resource_bookings.booking_purpose AS purpose,
+        resource_bookings.created_at AS createdAt,
+        resource_bookings.updated_at AS updatedAt
+      FROM resource_bookings
+      LEFT JOIN assets ON resource_bookings.asset_id = assets.id
+      LEFT JOIN users ON resource_bookings.booked_by_user_id = users.id
+      WHERE resource_bookings.id = ?
     `, [id]);
     return rows[0];
   },
@@ -87,9 +87,9 @@ const BookingModel = {
     const params = [asset_id, end_time, start_time];
     let sql = `
       SELECT id
-      FROM bookings
+      FROM resource_bookings
       WHERE asset_id = ?
-        AND status NOT IN ('cancelled', 'rejected', 'completed')
+        AND booking_status NOT IN ('Cancelled', 'Completed')
         AND NOT (end_time <= ? OR start_time >= ?)
     `;
 
@@ -104,17 +104,17 @@ const BookingModel = {
 
   async create({ asset_id, user_id, start_time, end_time, purpose, status }) {
     const [result] = await db.execute(
-      `INSERT INTO bookings (asset_id, user_id, start_time, end_time, purpose, status, created_at, updated_at)
+      `INSERT INTO resource_bookings (asset_id, booked_by_user_id, booking_purpose, start_time, end_time, booking_status, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())`,
-      [asset_id, user_id, start_time, end_time, purpose || null, status]
+      [asset_id, user_id, purpose || null, start_time, end_time, status]
     );
     return result.insertId;
   },
 
   async update(id, { asset_id, start_time, end_time, purpose, status }) {
     await db.execute(
-      `UPDATE bookings
-       SET asset_id = ?, start_time = ?, end_time = ?, purpose = ?, status = ?, updated_at = NOW()
+      `UPDATE resource_bookings
+       SET asset_id = ?, start_time = ?, end_time = ?, booking_purpose = ?, booking_status = ?, updated_at = NOW()
        WHERE id = ?`,
       [asset_id, start_time, end_time, purpose || null, status, id]
     );
@@ -122,15 +122,15 @@ const BookingModel = {
 
   async cancel(id) {
     await db.execute(
-      `UPDATE bookings SET status = 'cancelled', updated_at = NOW() WHERE id = ?`,
+      `UPDATE resource_bookings SET booking_status = 'Cancelled', updated_at = NOW() WHERE id = ?`,
       [id]
     );
   },
 
   async logActivity({ user_id, action, details }) {
     await db.execute(
-      'INSERT INTO activity_logs (user_id, action, details, created_at) VALUES (?, ?, ?, NOW())',
-      [user_id, action, details]
+      'INSERT INTO activity_logs (user_id, action_type, entity_type, entity_id, description, created_at) VALUES (?, ?, ?, ?, ?, NOW())',
+      [user_id, action, 'Booking', 0, details]
     );
   },
 };

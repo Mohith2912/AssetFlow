@@ -105,6 +105,15 @@ const allocationController = {
     }
   },
 
+  async listTransfers(req, res, next) {
+    try {
+      const transfers = await AllocationModel.listTransfers();
+      return successResponse(res, 'Transfer requests retrieved successfully', transfers);
+    } catch (err) {
+      next(err);
+    }
+  },
+
   async transferRequest(req, res, next) {
     try {
       const { error, value } = transferRequestSchema.validate(req.body);

@@ -2,6 +2,28 @@ const ReportModel = require('../models/reportModel');
 const { successResponse } = require('../utils/apiResponse');
 
 const reportController = {
+  async analytics(req, res, next) {
+    try {
+      const [summary, utilization, maintenance, departments, bookings] = await Promise.all([
+        ReportModel.summary(),
+        ReportModel.assetsUtilization(),
+        ReportModel.maintenanceFrequency(),
+        ReportModel.departmentSummary(),
+        ReportModel.bookingHeatmap(),
+      ]);
+
+      return successResponse(res, 'Analytics retrieved successfully', {
+        summary,
+        utilization,
+        maintenance,
+        departments,
+        bookings,
+        lastUpdated: new Date().toISOString(),
+      });
+    } catch (err) {
+      next(err);
+    }
+  },
   async summary(req, res, next) {
     try {
       const data = await ReportModel.summary();

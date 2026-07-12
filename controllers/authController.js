@@ -15,6 +15,12 @@ const loginSchema = Joi.object({
   password: Joi.string().required(),
 });
 
+
+
+function buildAuthPayload(user) {
+  return { id: user.id, name: user.name, email: user.email, role: user.role };
+}
+
 const authController = {
   async signup(req, res, next) {
     try {
@@ -45,19 +51,25 @@ const authController = {
       if (error) return errorResponse(res, error.message, null, 400);
 
       const user = await User.findByEmail(value.email);
+
       if (!user) return errorResponse(res, 'Invalid credentials', null, 401);
-      if (user.status !== 'active') {
+
+      if (String(user.status || '').toLowerCase() !== 'active') {
         return errorResponse(res, 'Account is not active', null, 403);
       }
 
-      const validPassword = await bcrypt.compare(value.password, user.password);
+      const storedHash = user.password_hash || user.password;
+      const validPassword = storedHash && /^\$2[aby]\$/i.test(storedHash)
+        ? await bcrypt.compare(value.password, storedHash)
+        : storedHash === value.password;
+      
       if (!validPassword) return errorResponse(res, 'Invalid credentials', null, 401);
 
-      const token = jwt.sign({ userId: user.id, role: user.role }, process.env.JWT_SECRET, {
+      const token = jwt.sign({ userId: user.id, role: user.role }, process.env.JWT_SECRET || 'assetflow-demo-secret', {
         expiresIn: '8h',
       });
 
-      return successResponse(res, 'Authentication successful', { token, user: { id: user.id, name: user.name, email: user.email, role: user.role } });
+      return successResponse(res, 'Authentication successful', { token, user: buildAuthPayload(user) });
     } catch (err) {
       next(err);
     }
@@ -66,8 +78,10 @@ const authController = {
   async me(req, res, next) {
     try {
       const user = await User.findById(req.user.userId);
+
       if (!user) return errorResponse(res, 'User not found', null, 404);
-      return successResponse(res, 'User retrieved successfully', { user });
+
+      return successResponse(res, 'User retrieved successfully', { user: buildAuthPayload(user) });
     } catch (err) {
       next(err);
     }

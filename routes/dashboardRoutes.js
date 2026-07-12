@@ -6,6 +6,7 @@ const dashboardController = require('../controllers/dashboardController');
 const router = express.Router();
 const allowedRoles = ['Admin', 'Asset Manager', 'Department Head'];
 
+router.get('/stats', requireAuth, requireRoles(allowedRoles), dashboardController.stats);
 router.get('/summary', requireAuth, requireRoles(allowedRoles), dashboardController.summary);
 
 module.exports = router;

@@ -17,17 +17,17 @@ const employeeController = {
       const [rows] = await db.execute(`
         SELECT
           u.id,
-          u.name,
+          u.full_name AS name,
           u.email,
-          r.name AS role,
-          d.name AS department,
+          r.role_name AS role,
+          d.department_name AS department,
           u.status,
           u.created_at AS createdAt,
           u.updated_at AS updatedAt
         FROM users u
         LEFT JOIN roles r ON u.role_id = r.id
         LEFT JOIN departments d ON u.department_id = d.id
-        ORDER BY u.name ASC
+        ORDER BY u.full_name ASC
       `);
 
       return successResponse(res, 'Employees retrieved successfully', rows);
@@ -56,7 +56,7 @@ const employeeController = {
       await db.execute('UPDATE users SET role_id = ?, updated_at = NOW() WHERE id = ?', [value.roleId, value.userId]);
 
       const [updatedRows] = await db.execute(`
-        SELECT u.id, u.name, u.email, r.name AS role, d.name AS department, u.status, u.created_at AS createdAt, u.updated_at AS updatedAt
+        SELECT u.id, u.full_name AS name, u.email, r.role_name AS role, d.department_name AS department, u.status, u.created_at AS createdAt, u.updated_at AS updatedAt
         FROM users u
         LEFT JOIN roles r ON u.role_id = r.id
         LEFT JOIN departments d ON u.department_id = d.id
@@ -85,7 +85,7 @@ const employeeController = {
       await db.execute('UPDATE users SET status = ?, updated_at = NOW() WHERE id = ?', [value.status, id]);
 
       const [updatedRows] = await db.execute(`
-        SELECT u.id, u.name, u.email, r.name AS role, d.name AS department, u.status, u.created_at AS createdAt, u.updated_at AS updatedAt
+        SELECT u.id, u.full_name AS name, u.email, r.role_name AS role, d.department_name AS department, u.status, u.created_at AS createdAt, u.updated_at AS updatedAt
         FROM users u
         LEFT JOIN roles r ON u.role_id = r.id
         LEFT JOIN departments d ON u.department_id = d.id

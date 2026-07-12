@@ -11,7 +11,7 @@ const ActivityLogModel = {
     }
 
     if (filters.action) {
-      conditions.push('activity_logs.action = ?');
+      conditions.push('activity_logs.action_type = ?');
       values.push(filters.action);
     }
 
@@ -29,9 +29,9 @@ const ActivityLogModel = {
       SELECT
         activity_logs.id,
         activity_logs.user_id,
-        users.name AS user_name,
-        activity_logs.action,
-        activity_logs.details,
+        users.full_name AS user_name,
+        activity_logs.action_type AS action,
+        activity_logs.description AS details,
         activity_logs.created_at AS createdAt
       FROM activity_logs
       LEFT JOIN users ON activity_logs.user_id = users.id
@@ -48,8 +48,8 @@ const ActivityLogModel = {
 
   async create({ user_id, action, details }) {
     const [result] = await db.execute(
-      'INSERT INTO activity_logs (user_id, action, details, created_at) VALUES (?, ?, ?, NOW())',
-      [user_id || null, action, details]
+      'INSERT INTO activity_logs (user_id, action_type, entity_type, entity_id, description, created_at) VALUES (?, ?, ?, ?, ?, NOW())',
+      [user_id || null, action, 'General', 0, details]
     );
     return result.insertId;
   },

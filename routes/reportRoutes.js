@@ -8,6 +8,7 @@ const allowedRoles = ['Admin', 'Asset Manager', 'Department Head'];
 
 router.use(requireAuth, requireRoles(allowedRoles));
 router.get('/summary', reportController.summary);
+router.get('/analytics', reportController.analytics);
 router.get('/assets-utilization', reportController.assetsUtilization);
 router.get('/maintenance-frequency', reportController.maintenanceFrequency);
 router.get('/department-summary', reportController.departmentSummary);

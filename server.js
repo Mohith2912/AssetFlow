@@ -9,14 +9,14 @@ async function startServer() {
     const connection = await db.getConnection();
     connection.release();
     console.log('MySQL database connection successful');
-
-    app.listen(PORT, () => {
-      console.log(`Server is running on port ${PORT}`);
-    });
   } catch (error) {
-    console.error('Unable to connect to the database:', error.message);
+    console.error('Failed to connect to MySQL. Exiting...', error.message);
     process.exit(1);
   }
+
+  app.listen(PORT, () => {
+    console.log(`Server is running on port ${PORT}`);
+  });
 }
 
 startServer();

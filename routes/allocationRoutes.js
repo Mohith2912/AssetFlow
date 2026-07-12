@@ -7,6 +7,7 @@ const router = express.Router();
 const allocationRoles = ['Admin', 'Asset Manager'];
 const approvalRoles = ['Admin', 'Asset Manager', 'Department Head'];
 
+router.get('/transfers', requireAuth, allocationController.listTransfers);
 router.post('/', requireAuth, requireRoles(allocationRoles), allocationController.allocate);
 router.post('/return', requireAuth, allocationController.returnAsset);
 router.post('/transfer-request', requireAuth, allocationController.transferRequest);

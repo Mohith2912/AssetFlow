@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useMockData } from '../context/MockDataContext';
 
 export default function Login() {
-  const { employees, setEmployees, loginUser, addActivityLog } = useMockData();
+  const { employees, setEmployees, loginUser, signupUser, addActivityLog } = useMockData();
 
   const [isSignup, setIsSignup] = useState(false);
   const [name, setName] = useState('');
@@ -67,7 +67,7 @@ export default function Login() {
       return;
     }
 
-    const result = loginUser(userMatch.email, userMatch.role);
+    const result = loginUser(userMatch.email, userMatch.role, cleanPassword);
 
     if (result?.ok) {
       setStatusMessage({
@@ -145,6 +145,7 @@ export default function Login() {
     };
 
     setEmployees((prev) => [...prev, newEmployeeAccount]);
+    signupUser(cleanName, cleanEmail, cleanPassword);
     addActivityLog(`Created employee account for ${cleanName}`, cleanName);
 
     setStatusMessage({
@@ -212,7 +213,7 @@ export default function Login() {
       return;
     }
 
-    const result = loginUser(demoUser.email, demoUser.role);
+    const result = loginUser(demoUser.email, demoUser.role, 'password123');
 
     if (result?.ok) {
       setEmail(demoUser.email);

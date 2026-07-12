@@ -11,6 +11,7 @@ const maintenanceRoutes = require('./routes/maintenanceRoutes');
 const reportRoutes = require('./routes/reportRoutes');
 const auditRoutes = require('./routes/auditRoutes');
 const activityLogRoutes = require('./routes/activityLogRoutes');
+const notificationRoutes = require('./routes/notificationRoutes');
 const errorHandler = require('./middleware/errorHandler');
 
 const app = express();
@@ -28,6 +29,7 @@ app.use('/api/maintenance', maintenanceRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/audits', auditRoutes);
 app.use('/api/activity-logs', activityLogRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 app.use((req, res, next) => {
   const error = new Error('Not Found');
